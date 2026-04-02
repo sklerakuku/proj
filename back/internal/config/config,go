@@ -1,0 +1,36 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+
+	"github.com/joho/godotenv"
+)
+
+type Config struct {
+	GRPCPort int
+}
+
+func Load() (*Config, error) {
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("Warning: .env file not found, using system environment variables")
+	}
+
+	portStr := getEnv("GRPC_PORT", "50051")
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GRPC_PORT value: %v", err)
+	}
+
+	return &Config{
+		GRPCPort: port,
+	}, nil
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
