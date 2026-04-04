@@ -56,13 +56,11 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-// Form state
 const formData = reactive({
   username: '',
   password: ''
 })
 
-// UI state
 const isLoading = ref(false)
 const errorMessage = ref('')
 const errors = reactive({
@@ -70,7 +68,6 @@ const errors = reactive({
   password: ''
 })
 
-// Validation rules
 const validateField = (field) => {
   switch (field) {
     case 'username':
@@ -102,10 +99,8 @@ const validateForm = () => {
 }
 
 const handleLogin = async () => {
-  // Clear previous error
   errorMessage.value = ''
   
-  // Validate form
   if (!validateForm()) {
     return
   }
@@ -113,7 +108,7 @@ const handleLogin = async () => {
   isLoading.value = true
 
   try {
-    const response = await fetch('/api/login', {
+    const response = await fetch('/auth/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -127,16 +122,14 @@ const handleLogin = async () => {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.message || 'Login failed')
+      throw new Error(data.error || 'Login failed')
     }
 
-    // Store token
     if (data.token) {
       localStorage.setItem('auth_token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
     }
 
-    // Redirect to dashboard after successful login
     router.push('/dashboard')
     
   } catch (error) {
@@ -149,7 +142,6 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-/* Your existing styles */
 .login {
   display: flex;
   flex-direction: column;
@@ -196,7 +188,7 @@ form {
 
 .sketch-input:focus {
   outline: none;
-  border-color: var(--color-primary, #4a90e2);
+  border-color: #4a90e2;
   transform: scale(1.02);
 }
 
@@ -206,7 +198,7 @@ form {
 
 .sketch-input::placeholder {
   color: var(--color-text);
-  opacity: 50%;
+  opacity: 0.5;
 }
 
 .error-message {
@@ -255,12 +247,10 @@ form {
   color: var(--color-text);
   text-decoration: underline;
   font-size: 0.875rem;
-  transition: opacity 0.1s cubic-bezier();
   cursor: pointer;
 }
 
 .register-link:hover {
-  text-decoration: underline;
   opacity: 0.8;
 }
 

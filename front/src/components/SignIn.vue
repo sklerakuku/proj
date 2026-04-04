@@ -45,7 +45,6 @@
         <span v-if="errors.confirmPassword" class="error-message">{{ errors.confirmPassword }}</span>
       </div>
 
-      <!-- Compact CAPTCHA - click on canvas to refresh -->
       <div class="captcha-line">
         <canvas 
           ref="captchaCanvas" 
@@ -93,7 +92,6 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-// Form state
 const formData = reactive({
   username: '',
   password: '',
@@ -101,7 +99,6 @@ const formData = reactive({
   captchaCode: ''
 })
 
-// UI state
 const isLoading = ref(false)
 const errorMessage = ref('')
 const captchaCanvas = ref(null)
@@ -114,7 +111,6 @@ const errors = reactive({
   captchaCode: ''
 })
 
-// Generate random CAPTCHA
 const generateCaptcha = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789'
   let captcha = ''
@@ -123,25 +119,20 @@ const generateCaptcha = () => {
   }
   currentCaptcha.value = captcha
   
-  // Draw on canvas
   if (captchaCanvas.value) {
     const ctx = captchaCanvas.value.getContext('2d')
     const canvas = captchaCanvas.value
     
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     
-    // Background
     ctx.fillStyle = '#f5f5f5'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     
-    // Add noise dots
     for (let i = 0; i < 100; i++) {
       ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.3})`
       ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 1, 1)
     }
     
-    // Draw CAPTCHA text with distortion
     for (let i = 0; i < captcha.length; i++) {
       ctx.save()
       ctx.translate(20 + i * 18, 30)
@@ -152,7 +143,6 @@ const generateCaptcha = () => {
       ctx.restore()
     }
     
-    // Add random lines
     for (let i = 0; i < 4; i++) {
       ctx.beginPath()
       ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height)
@@ -170,7 +160,6 @@ const refreshCaptcha = () => {
   errors.captchaCode = ''
 }
 
-// Validation rules
 const validateField = (field) => {
   switch (field) {
     case 'username':
@@ -192,8 +181,6 @@ const validateField = (field) => {
         errors.password = 'Password is required'
       } else if (formData.password.length < 6) {
         errors.password = 'Password must be at least 6 characters'
-      } else if (!/(?=.*[A-Z])(?=.*[0-9])/.test(formData.password)) {
-        errors.password = 'Password must contain at least one uppercase letter and one number'
       } else {
         errors.password = ''
       }
@@ -227,18 +214,12 @@ const validateForm = () => {
   validateField('confirmPassword')
   validateField('captchaCode')
   
-  return !errors.username && 
-         !errors.password && 
-         !errors.confirmPassword && 
-         !errors.captchaCode
+  return !errors.username && !errors.password && !errors.confirmPassword && !errors.captchaCode
 }
 
-// Handle signup submission
 const handleSignup = async () => {
-  // Clear previous error
   errorMessage.value = ''
   
-  // Validate form
   if (!validateForm()) {
     return
   }
@@ -246,53 +227,36 @@ const handleSignup = async () => {
   isLoading.value = true
 
   try {
-    // Prepare user data
-    const userData = {
-      username: formData.username.trim(),
-      password: formData.password,
-      email: `${formData.username.trim()}@example.com`
-    }
-
-    // Make API request to create account
-    const response = await fetch('/api/auth/signup', {
+    const response = await fetch('/auth/register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(userData)
+      body: JSON.stringify({
+        username: formData.username.trim(),
+        password: formData.password,
+        role: 'worker'
+      })
     })
 
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.message || 'Account creation failed')
+      throw new Error(data.error || 'Account creation failed')
     }
 
-    // Store token if received
-    if (data.token) {
-      localStorage.setItem('auth_token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
-    }
-
-    console.log('Account created successfully:', data)
-    
-    // Redirect to login
-    setTimeout(() => {
-      router.push('/login')
-    }, 1500)
+    alert('Account created successfully! Please log in.')
+    router.push('/login')
     
   } catch (error) {
     errorMessage.value = error.message || 'An error occurred during account creation'
     console.error('Signup error:', error)
-    
-    // Refresh CAPTCHA on error
     refreshCaptcha()
   } finally {
     isLoading.value = false
   }
 }
 
-// Initialize CAPTCHA on component mount
 onMounted(() => {
   generateCaptcha()
 })
@@ -345,7 +309,7 @@ form {
 
 .sketch-input:focus {
   outline: none;
-  border-color: var(--color-primary, #4a90e2);
+  border-color: #4a90e2;
   transform: scale(1.02);
 }
 
@@ -355,10 +319,9 @@ form {
 
 .sketch-input::placeholder {
   color: var(--color-text);
-  opacity: 50%;
+  opacity: 0.5;
 }
 
-/* CAPTCHA Styles */
 .captcha-line {
   display: flex;
   gap: 12px;
@@ -378,7 +341,7 @@ form {
 
 .sketch-captcha:hover {
   transform: scale(1.02);
-  border-color: var(--color-primary, #4a90e2);
+  border-color: #4a90e2;
 }
 
 .captcha-input {
@@ -434,11 +397,9 @@ form {
   color: var(--color-text);
   text-decoration: underline;
   font-size: 0.875rem;
-  transition: opacity 0.1s cubic-bezier();
 }
 
 .register-link:hover {
-  text-decoration: underline;
   opacity: 0.8;
 }
 
