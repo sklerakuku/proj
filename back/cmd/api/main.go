@@ -1,5 +1,15 @@
 package main
 
+// @title Менеджер рабочих процессов API
+// @version 1.0
+// @description API для управления рабочими процессами
+// @host localhost:8080
+// @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Введите токен в формате: Bearer {token}
+
 import (
 	"context"
 	"fmt"
@@ -17,6 +27,7 @@ import (
 	"github.com/sklerakuku/tracker-web/internal/repository"
 	"github.com/sklerakuku/tracker-web/internal/service"
 	"github.com/sklerakuku/tracker-web/pkg/jwt"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func main() {
@@ -37,6 +48,12 @@ func main() {
 	srv := service.NewService(repo)
 	h := handler.NewHandler(srv)
 
+	http.HandleFunc("GET /swagger/", httpSwagger.WrapHandler)
+
+	http.HandleFunc("GET /swagger/doc/", httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8080/docs/swagger.json"),
+	))
+
 	// ROUTES - PUBLIC
 	http.HandleFunc("POST /auth/login", middleware.Logging(h.Login))
 	http.HandleFunc("POST /auth/register", middleware.Logging(h.Register))
@@ -51,10 +68,19 @@ func main() {
 
 	// Process routes
 	http.HandleFunc("POST /processes", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.CreateProcess))))
+	http.HandleFunc("GET /processes", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.ListProcesses))))
 	http.HandleFunc("GET /processes/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.GetProcess))))
 
 	// Task routes
 	http.HandleFunc("PATCH /tasks/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.UpdateTaskStatus))))
+
+	// Admin routes
+	http.HandleFunc("GET /admin/users", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.ListUsers))))
+	http.HandleFunc("PUT /admin/users/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.UpdateUser))))
+	http.HandleFunc("DELETE /admin/users/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.DeleteUser))))
+	http.HandleFunc("GET /admin/templates", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.ListTemplates))))
+	http.HandleFunc("DELETE /admin/templates/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.DeleteTemplate))))
+	http.HandleFunc("DELETE /admin/processes/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.DeleteProcess))))
 
 	server := &http.Server{
 		Addr:         ":" + cfg.AppPort,

@@ -57,7 +57,7 @@ func (r *Repository) CreateTemplate(ctx context.Context, name, description strin
 }
 
 func (r *Repository) GetAllTemplates(ctx context.Context) (model.Templates, error) {
-	rows, err := r.db.Query(ctx, `SELECT 8 FROM templates ORDER BY id`)
+	rows, err := r.db.Query(ctx, `SELECT * FROM templates ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -250,4 +250,104 @@ func (r *Repository) CheckTasksStatus(ctx context.Context, taskIDs []int, status
 	var count int
 	err := r.db.QueryRow(ctx, query, taskIDs, status).Scan(&count)
 	return count == 0, err
+}
+
+// GetAllProcesses - получить все процессы с задачами
+func (r *Repository) GetAllProcesses(ctx context.Context) (model.Processes, error) {
+	rows, err := r.db.Query(ctx, `SELECT id, title, status, start_date, finished_at FROM processes ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var processes model.Processes
+	for rows.Next() {
+		var p model.Process
+		err := rows.Scan(&p.ID, &p.Title, &p.Status, &p.StartedAt, &p.FinishedAt)
+		if err != nil {
+			return nil, err
+		}
+
+		// Получаем задачи для процесса
+		p.Tasks, _ = r.getTasksByProcess(ctx, p.ID)
+		processes = append(processes, &p)
+	}
+	return processes, nil
+}
+
+// getTasksByProcess - вспомогательный метод для получения задач процесса
+func (r *Repository) getTasksByProcess(ctx context.Context, processID int) (model.Tasks, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, title, comment, status, role, started_at, finished_at, plan_done_hours, is_file_required 
+		FROM tasks WHERE process_id = $1
+	`, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks model.Tasks
+	for rows.Next() {
+		var t model.Task
+		err := rows.Scan(&t.ID, &t.Title, &t.Comment, &t.Status, &t.ForRole,
+			&t.StartedAt, &t.FinishedAt, &t.PlanHours, &t.IsFileRequired)
+		if err != nil {
+			return nil, err
+		}
+		t.ProcessID = processID
+		tasks = append(tasks, &t)
+	}
+	return tasks, nil
+}
+
+// GetAllUsers - все пользователи (для админки)
+func (r *Repository) GetAllUsers(ctx context.Context) (model.Users, error) {
+	rows, err := r.db.Query(ctx, `SELECT id, username, role, created_at FROM users ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users model.Users
+	for rows.Next() {
+		var u model.User
+		err := rows.Scan(&u.ID, &u.Username, &u.Role, &u.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, &u)
+	}
+	return users, nil
+}
+
+// UpdateUser - обновление пользователя
+func (r *Repository) UpdateUser(ctx context.Context, id int, username, role, passwordHash string) error {
+	if passwordHash != "" {
+		_, err := r.db.Exec(ctx,
+			`UPDATE users SET username = $1, role = $2, password_hash = $3 WHERE id = $4`,
+			username, role, passwordHash, id)
+		return err
+	}
+	_, err := r.db.Exec(ctx,
+		`UPDATE users SET username = $1, role = $2 WHERE id = $3`,
+		username, role, id)
+	return err
+}
+
+// DeleteUser - удаление пользователя
+func (r *Repository) DeleteUser(ctx context.Context, id int) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+	return err
+}
+
+// DeleteTemplate - удаление шаблона
+func (r *Repository) DeleteTemplate(ctx context.Context, id int) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM templates WHERE id = $1`, id)
+	return err
+}
+
+// DeleteProcess - удаление процесса
+func (r *Repository) DeleteProcess(ctx context.Context, id int) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM processes WHERE id = $1`, id)
+	return err
 }

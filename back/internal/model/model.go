@@ -36,7 +36,7 @@ type (
 		ID             int         `json:"id"`
 		ProcessID      int         `json:"process_id"`
 		Title          string      `json:"title"`
-		Comment        string      `json:"comment"`
+		Comment        *string     `json:"comment"`
 		Status         string      `json:"status"`
 		ForRole        string      `json:"for_role"`
 		StartedAt      *time.Time  `json:"started_at"`

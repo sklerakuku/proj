@@ -143,3 +143,40 @@ func (s *Service) UpdateTaskStatus(ctx context.Context, taskID int, status strin
 
 	return s.repo.UpdateTaskStatus(ctx, taskID, status)
 }
+
+func (s *Service) GetAllProcesses(ctx context.Context) (model.Processes, error) {
+	return s.repo.GetAllProcesses(ctx)
+}
+
+func (s *Service) GetAllUsers(ctx context.Context) (model.Users, error) {
+	return s.repo.GetAllUsers(ctx)
+}
+
+func (s *Service) UpdateUser(ctx context.Context, id int, username, role, password string) error {
+	if role != "" && role != "admin" && role != "worker" && role != "manager" {
+		return errors.New("invalid role")
+	}
+
+	var passwordHash string
+	if password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		passwordHash = string(hash)
+	}
+
+	return s.repo.UpdateUser(ctx, id, username, role, passwordHash)
+}
+
+func (s *Service) DeleteUser(ctx context.Context, id int) error {
+	return s.repo.DeleteUser(ctx, id)
+}
+
+func (s *Service) DeleteTemplate(ctx context.Context, id int) error {
+	return s.repo.DeleteTemplate(ctx, id)
+}
+
+func (s *Service) DeleteProcess(ctx context.Context, id int) error {
+	return s.repo.DeleteProcess(ctx, id)
+}

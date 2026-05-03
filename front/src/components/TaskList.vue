@@ -1,213 +1,136 @@
 <template>
   <div class="dashboard">
-    <div class="main-content">
-
-      <!-- Основной контент (80%, со скроллом) -->
-      <div class="processes-area">
-        <div class="processes-header">
-          <h2>Active Tasks ({{ activeProcesses.length }})</h2>
-          <div class="header-buttons">
-            <button class="action-btn" @click="createFromTemplate">From Template</button>
-            <button class="action-btn plus" @click="createEmpty">+</button>
-          </div>
-        </div>
-
-        <!-- Плитки процессов -->
-        <div class="processes-grid">
-          <ProcessCard 
-            v-for="process in filteredProcesses" 
-            :key="process.id"
-            :process="process"
-            @click="openProcess(process.id)"
-          />
-        </div>
-
-        <!-- Завершённые процессы (аккордеон) -->
-        <div class="completed-section">
-          <div class="completed-header" @click="showCompleted = !showCompleted">
-            <h3>History ({{ completedProcesses.length }}) <span>{{ showCompleted ? '▼' : '▶' }}</span></h3>
-            
-          </div>
-          <div v-if="showCompleted" class="completed-grid">
-            <ProcessCard 
-              v-for="process in completedProcesses" 
-              :key="process.id"
-              :process="process"
-              :completed="true"
-              @click="openProcess(process.id)"
-            />
-          </div>
+    <div class="processes-area">
+      <div class="processes-header">
+        <h2>Active Processes ({{ processes.length }})</h2>
+        <div class="header-buttons">
+          <!-- Кнопка для создания нового процесса пока выключена, т.к. нужен template_id -->
+          <button class="action-btn" @click="createNewProcess" :disabled="creating">
+            {{ creating ? 'Creating...' : 'New Process (Test)' }}
+          </button>
         </div>
       </div>
+
+      <div v-if="loading" class="status-message">Loading processes...</div>
+      <div v-else-if="error" class="status-message error">{{ error }}</div>
       
-      <!-- Боковая панель (фиксированная, 20%) -->
-      <div class="sidebar-fixed">
-        <SearchFilter 
-          @search="handleSearch" 
-          @filter-change="handleFilterChange"
-          @date-change="handleDateChange"
+      <div v-else class="processes-grid">
+        <ProcessCard 
+          v-for="process in processes" 
+          :key="process.id"
+          :process="process"
+          @click="openProcess(process.id)"
         />
+        <div v-if="processes.length === 0" class="status-message">
+          No processes yet. Create one to get started!
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import ProcessCard from './common/ProcessCard.vue'
-import SearchFilter from './common/Sidebar.vue'
 
 const router = useRouter()
-const showCompleted = ref(false)
-const searchQuery = ref('')
-const filters = ref({ priority: [] })
-const selectedDate = ref(null)
+const processes = ref([])
+const loading = ref(true)
+const error = ref(null)
+const creating = ref(false)
 
-// Мок данные процессов
-const processes = ref([
-  {
-    id: 1,
-    name: 'Website Redesign',
-    status: 'active',
-    priority: 'high',
-    currentStage: 'Development',
-    completedTasks: 2,
-    totalTasks: 5,
-    waitingFor: 'Design review',
-    timer: '2d 4h',
-    stages: ['Analysis', 'Design', 'Development', 'Testing', 'Deploy'],
-    activeStage: 2
-  },
-  {
-    id: 2,
-    name: 'Mobile App Launch',
-    status: 'active',
-    priority: 'medium',
-    currentStage: 'Testing',
-    completedTasks: 3,
-    totalTasks: 4,
-    waitingFor: 'QA team',
-    timer: '1d 2h',
-    stages: ['Planning', 'Development', 'Testing', 'Deploy'],
-    activeStage: 2
-  },
-  {
-    id: 3,
-    name: 'Database Migration',
-    status: 'active',
-    priority: 'high',
-    currentStage: 'Backup',
-    completedTasks: 1,
-    totalTasks: 3,
-    waitingFor: 'DBA approval',
-    timer: '5h',
-    stages: ['Backup', 'Migration', 'Verification'],
-    activeStage: 0
-  },
-  {
-    id: 4,
-    name: 'API Documentation',
-    status: 'completed',
-    priority: 'low',
-    currentStage: 'Done',
-    completedTasks: 3,
-    totalTasks: 3,
-    waitingFor: null,
-    timer: '0h'
+// Функция для выполнения API-запросов с авторизацией
+const apiCall = async (url, options = {}) => {
+  const token = localStorage.getItem('auth_token')
+  if (!token) {
+    router.push('/login')
+    throw new Error('Not authenticated')
   }
-])
 
-const activeProcesses = computed(() => 
-  processes.value.filter(p => p.status === 'active')
-)
-
-const completedProcesses = computed(() => 
-  processes.value.filter(p => p.status === 'completed')
-)
-
-const filteredProcesses = computed(() => {
-  let result = [...activeProcesses.value]
-  
-  if (searchQuery.value) {
-    result = result.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    ...options.headers
   }
-  
-  if (filters.value.priority && filters.value.priority.length > 0) {
-    result = result.filter(p => filters.value.priority.includes(p.priority))
-  }
-  
-  return result
-})
 
-const createFromTemplate = () => {
-  router.push('/editor')
+  const response = await fetch(url, { ...options, headers })
+  
+  if (response.status === 401) {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user')
+    router.push('/login')
+    throw new Error('Session expired')
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Request failed with status ${response.status}`)
+  }
+
+  return response.json()
 }
 
-const createEmpty = () => {
-  alert('Create new process')
+const fetchProcesses = async () => {
+  loading.value = true
+  error.value = null
+  try {
+    const data = await apiCall('/processes')
+    processes.value = data || []
+  } catch (err) {
+    error.value = err.message
+    console.error(err)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Временная функция для создания процесса с ID шаблона 0.
+// В реальном приложении здесь должен быть выбор из существующих шаблонов.
+const createNewProcess = async () => {
+  creating.value = true
+  try {
+    const newProcess = await apiCall('/processes', {
+      method: 'POST',
+      body: JSON.stringify({
+        template_id: 1, // Здесь должен быть реальный ID существующего шаблона
+        title: `New Process ${new Date().toLocaleTimeString()}`
+      })
+    })
+    processes.value.push(newProcess)
+  } catch (err) {
+    alert(`Failed to create process: ${err.message}`)
+    console.error(err)
+  } finally {
+    creating.value = false
+  }
 }
 
 const openProcess = (id) => {
-  router.push(`/process/${id}`)
+  router.push(`/processes/${id}`)
 }
 
-const handleSearch = (query) => {
-  searchQuery.value = query
-}
-
-const handleFilterChange = (filter) => {
-  filters.value = filter
-}
-
-const handleDateChange = (date) => {
-  selectedDate.value = date
-}
+onMounted(() => {
+  fetchProcesses()
+})
 </script>
 
 <style scoped>
+/* Оставляем ваши оригинальные стили */
 .dashboard {
+  width: 100%;
   min-height: 100vh;
   background: var(--color-background);
-}
-
-.main-content {
   display: flex;
-  padding: 2rem 5% 0 5%;
-  gap: 2rem;
-  align-items: flex-start;
-}
-
-.sidebar-fixed {
-  flex: 1;
-  position: sticky;
-  top: 5%;
-  align-self: flex-start;
+  justify-content: center;
 }
 
 .processes-area {
-  width: 70em;
-  flex: 4;
-  max-height: calc(90vh - 150px);
+  width: 100%;
+  max-width: 900px;
+  padding: 2rem;
+  max-height: calc(100vh - 100px);
   overflow-y: auto;
-  padding-right: 8px;
-}
-
-.processes-area::-webkit-scrollbar {
-  width: 8px;
-}
-
-.processes-area::-webkit-scrollbar-track {
-  background: var(--color-background);
-  border-radius: 10px;
-}
-
-.processes-area::-webkit-scrollbar-thumb {
-  background: var(--color-text);
-  border-radius: 10px;
-  opacity: 0.5;
 }
 
 .processes-header {
@@ -219,7 +142,6 @@ const handleDateChange = (date) => {
 
 .processes-header h2 {
   font-family: var(--font-1);
-  margin: 0;
 }
 
 .header-buttons {
@@ -238,61 +160,37 @@ const handleDateChange = (date) => {
   transition: all 0.1s ease;
 }
 
-.action-btn:hover {
+.action-btn:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
-.action-btn.plus {
-  width: 42px;
-  padding: 8px;
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .processes-grid {
   display: flex;
   flex-direction: column;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 2rem;
 }
 
-.completed-section {
-  margin-top: 2rem;
-  border-top: 2px dashed var(--color-text);
-  padding-top: 1rem;
-}
-
-.completed-header {
-  display: flex;
-  justify-content: space-between;
-  cursor: pointer;
-  padding: 10px;
+.status-message {
+  text-align: center;
+  padding: 2rem;
+  font-family: var(--font-1);
+  border: 2px dashed var(--color-text);
   border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
-  transition: all 0.1s ease;
 }
 
-.completed-header:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.completed-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
+.status-message.error {
+  border-color: #ff4444;
+  color: #ff4444;
 }
 
 @media (max-width: 768px) {
-  .main-content {
-    flex-direction: column;
-  }
-  
-  .sidebar-fixed {
-    position: static;
-    width: 100%;
-  }
-  
-  .processes-grid {
-    grid-template-columns: 1fr;
+  .processes-area {
+    padding: 1rem;
   }
 }
 </style>

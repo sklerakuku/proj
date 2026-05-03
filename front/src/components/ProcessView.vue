@@ -1,75 +1,36 @@
 <template>
   <div class="process-view">
-    <!-- Верхняя панель инструментов -->
     <div class="process-toolbar">
-      <button class="tool-btn" @click="toggleSidebar">
-        <span class="icon">☰</span>
-      </button>
-      <button class="tool-btn" @click="addNewProcess">
-        <span class="icon">+</span>
-      </button>
-      <button class="tool-btn" @click="openSettings">
-        <span class="icon">Settings</span>
-      </button>
-      <button class="tool-btn" @click="showStats">
-        <span class="icon">Stats</span>
-      </button>
-      <div class="process-name">{{ process.name }}</div>
-      <div class="process-timer">⏱️ {{ formattedTimer }}</div>
+      <button class="tool-btn" @click="goBack">← Back</button>
+      <div class="process-name">{{ process.title }}</div>
+      <div class="process-status">Status: {{ process.status }}</div>
     </div>
 
-    <!-- Граф задач -->
-    <div class="graph-container" ref="graphContainer">
-      <svg 
-        class="graph-svg" 
-        :viewBox="`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`"
-        @wheel.prevent="handleZoom"
+    <div v-if="loading" class="status-message">Loading...</div>
+    <div v-else-if="error" class="status-message error">{{ error }}</div>
+    
+    <div v-else class="flow-container">
+      <VueFlow
+        v-model="elements"
+        :node-types="nodeTypes"
+        :default-viewport="{ zoom: 1 }"
+        :min-zoom="0.2"
+        :max-zoom="4"
+        @node-click="onNodeClick"
       >
-        <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="var(--color-text)" />
-          </marker>
-        </defs>
+        <Background pattern-color="#aaa" :gap="16" />
+        <Controls />
         
-        <!-- Линии -->
-        <line 
-          v-for="edge in edges" 
-          :key="edge.id"
-          :x1="edge.x1" 
-          :y1="edge.y1" 
-          :x2="edge.x2" 
-          :y2="edge.y2"
-          stroke="var(--color-text)"
-          stroke-width="2"
-          marker-end="url(#arrowhead)"
-        />
-        
-        <!-- Задачи (ноды) -->
-        <g 
-          v-for="task in tasks" 
-          :key="task.id"
-          :transform="`translate(${task.x}, ${task.y})`"
-          @click="selectTask(task)"
-        >
-          <foreignObject width="200" height="100">
-            <TaskNode 
-              :task="task"
-              :selected="selectedTask?.id === task.id"
-              @complete="completeTask"
-            />
-          </foreignObject>
-        </g>
-      </svg>
-      
-      <!-- Контролы зума -->
-      <div class="zoom-controls">
-        <button @click="zoomIn">+</button>
-        <button @click="zoomOut">-</button>
-        <button @click="resetZoom">⟳</button>
-      </div>
+        <template #node-taskNode="{ data }">
+          <TaskNode 
+            :task="data.task"
+            @complete="completeTask"
+            @click="selectTask(data.task)"
+          />
+        </template>
+      </VueFlow>
     </div>
 
-    <!-- Боковое меню задачи -->
     <TaskSidebar 
       v-if="selectedTask"
       :task="selectedTask"
@@ -80,185 +41,227 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { VueFlow } from '@vue-flow/core'
+import { Background } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
 import TaskNode from './common/TaskNode.vue'
 import TaskSidebar from './common/TaskSidebar.vue'
+
+// Стили Vue Flow
+import '@vue-flow/core/dist/style.css'
+import '@vue-flow/core/dist/theme-default.css'
+import '@vue-flow/controls/dist/style.css'
 
 const route = useRoute()
 const router = useRouter()
 const processId = ref(route.params.id)
 
-// Состояние процесса
-const process = ref({
-  id: 1,
-  name: 'Website Redesign',
-  startTime: new Date(Date.now() - 3600000 * 24 * 2) // 2 дня назад
-})
-
-// Задачи (ноды) с координатами
-const tasks = ref([
-  { 
-    id: 1, 
-    title: 'Analysis', 
-    description: 'Gather requirements and analyze market',
-    status: 'done',
-    assignedTo: 'Anna',
-    role: 'analyst',
-    x: 50, y: 200,
-    attachments: ['requirements.pdf']
-  },
-  { 
-    id: 2, 
-    title: 'Design', 
-    description: 'Create UI/UX designs',
-    status: 'done',
-    assignedTo: 'Mike',
-    role: 'designer',
-    x: 300, y: 200,
-    attachments: ['design.fig']
-  },
-  { 
-    id: 3, 
-    title: 'Development', 
-    description: 'Implement features',
-    status: 'in_progress',
-    assignedTo: 'John',
-    role: 'developer',
-    x: 550, y: 200,
-    attachments: []
-  },
-  { 
-    id: 4, 
-    title: 'Testing', 
-    description: 'QA and bug fixes',
-    status: 'pending',
-    assignedTo: 'Sarah',
-    role: 'tester',
-    x: 800, y: 200,
-    attachments: []
-  },
-  { 
-    id: 5, 
-    title: 'Deployment', 
-    description: 'Deploy to production',
-    status: 'pending',
-    assignedTo: 'Ops',
-    role: 'devops',
-    x: 1050, y: 200,
-    attachments: []
-  }
-])
-
-// Связи между задачами
-const edges = computed(() => [
-  { id: 1, x1: 250, y1: 250, x2: 300, y2: 250 },
-  { id: 2, x1: 500, y1: 250, x2: 550, y2: 250 },
-  { id: 3, x1: 750, y1: 250, x2: 800, y2: 250 },
-  { id: 4, x1: 1000, y1: 250, x2: 1050, y2: 250 }
-])
-
+const process = ref({ tasks: [] })
+const loading = ref(true)
+const error = ref(null)
 const selectedTask = ref(null)
-const showSidebarFlag = ref(true)
 
-// Zoom и панорамирование
-const graphContainer = ref(null)
-const viewBox = ref({ x: 0, y: 0, width: 1200, height: 500 })
-const scale = ref(1)
-
-// Таймер
-const timer = ref(0)
-let timerInterval = null
-
-const formattedTimer = computed(() => {
-  const hours = Math.floor(timer.value / 3600)
-  const minutes = Math.floor((timer.value % 3600) / 60)
-  const seconds = timer.value % 60
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-})
-
-const toggleSidebar = () => {
-  showSidebarFlag.value = !showSidebarFlag.value
-  // Можно добавить логику скрытия боковой панели
+// Типы узлов
+const nodeTypes = {
+  taskNode: markRaw(TaskNode)
 }
 
-const addNewProcess = () => {
-  router.push('/editor')
+// Элементы для VueFlow
+const elements = ref([])
+
+const apiCall = async (url, options = {}) => {
+  const token = localStorage.getItem('auth_token')
+  if (!token) {
+    router.push('/login')
+    throw new Error('Not authenticated')
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    ...options.headers
+  }
+
+  const response = await fetch(url, { ...options, headers })
+  
+  if (response.status === 401) {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user')
+    router.push('/login')
+    throw new Error('Session expired')
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Request failed with status ${response.status}`)
+  }
+
+  return response.json()
 }
 
-const openSettings = () => {
-  alert('Process settings')
+// Функция расчета позиций для узлов графа
+const calculateLayout = (tasks) => {
+  if (!tasks || tasks.length === 0) return { nodes: [], edges: [] }
+  
+  const nodes = []
+  const edges = []
+  
+  // Простая схема: задачи располагаются слева направо
+  // Зависимые задачи правее
+  const levels = {}
+  const taskMap = {}
+  
+  // Создаем карту задач
+  tasks.forEach(task => {
+    taskMap[task.id] = task
+  })
+  
+  // Определяем уровень для каждой задачи
+  const getLevel = (taskId, visited = new Set()) => {
+    if (visited.has(taskId)) return 0
+    if (levels[taskId] !== undefined) return levels[taskId]
+    
+    visited.add(taskId)
+    const task = taskMap[taskId]
+    if (!task || !task.depends_on || task.depends_on.length === 0) {
+      levels[taskId] = 0
+      return 0
+    }
+    
+    const maxDepLevel = Math.max(...task.depends_on.map(depId => getLevel(depId, visited)))
+    levels[taskId] = maxDepLevel + 1
+    return levels[taskId]
+  }
+  
+  tasks.forEach(task => getLevel(task.id))
+  
+  // Группируем задачи по уровням
+  const tasksByLevel = {}
+  tasks.forEach(task => {
+    const level = levels[task.id] || 0
+    if (!tasksByLevel[level]) tasksByLevel[level] = []
+    tasksByLevel[level].push(task)
+  })
+  
+  // Создаем узлы с позициями
+  const levelGap = 250  // расстояние между уровнями
+  const nodeGap = 150   // расстояние между узлами на одном уровне
+  
+  Object.keys(tasksByLevel).sort().forEach(level => {
+    const tasksInLevel = tasksByLevel[level]
+    const totalHeight = (tasksInLevel.length - 1) * nodeGap
+    const startY = -totalHeight / 2
+    
+    tasksInLevel.forEach((task, index) => {
+      nodes.push({
+        id: task.id.toString(),
+        type: 'taskNode',
+        position: { 
+          x: level * levelGap, 
+          y: startY + index * nodeGap 
+        },
+        data: { task }
+      })
+    })
+  })
+  
+  // Создаем связи
+  tasks.forEach(task => {
+    if (task.depends_on) {
+      task.depends_on.forEach(depId => {
+        edges.push({
+          id: `${depId}-${task.id}`,
+          source: depId.toString(),
+          target: task.id.toString(),
+          type: 'smoothstep',
+          animated: task.status === 'in_progress',
+          style: {
+            stroke: task.status === 'done' ? '#4caf50' : '#999',
+            strokeWidth: 2
+          }
+        })
+      })
+    }
+  })
+  
+  return { nodes, edges }
 }
 
-const showStats = () => {
-  alert(`Process stats: ${tasks.value.length} tasks, ${tasks.value.filter(t => t.status === 'done').length} completed`)
+const fetchProcess = async () => {
+  loading.value = true
+  error.value = null
+  try {
+    const data = await apiCall(`/processes/${processId.value}`)
+    process.value = data
+    
+    // Рассчитываем раскладку
+    const { nodes, edges } = calculateLayout(data.tasks || [])
+    elements.value = [...nodes, ...edges]
+    
+  } catch (err) {
+    error.value = err.message
+    console.error(err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const completeTask = async (taskId) => {
+  try {
+    const task = process.value.tasks.find(t => t.id === taskId)
+    if (!task || task.status === 'done') return
+
+    await apiCall(`/tasks/${taskId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'done' })
+    })
+
+    task.status = 'done'
+    
+    // Пересчитываем граф для обновления анимаций
+    const { nodes, edges } = calculateLayout(process.value.tasks)
+    elements.value = [...nodes, ...edges]
+    
+    if (selectedTask.value?.id === taskId) {
+      selectedTask.value = { ...task }
+    }
+  } catch (err) {
+    alert(`Failed to complete task: ${err.message}`)
+    console.error(err)
+  }
+}
+
+const onNodeClick = ({ node }) => {
+  if (node.data?.task) {
+    selectedTask.value = { ...node.data.task }
+  }
 }
 
 const selectTask = (task) => {
-  selectedTask.value = task
+  selectedTask.value = { ...task }
 }
 
-const completeTask = (taskId) => {
-  const task = tasks.value.find(t => t.id === taskId)
-  if (task && task.status !== 'done') {
-    task.status = 'done'
+const updateTask = (updatedTask) => {
+  const index = process.value.tasks.findIndex(t => t.id === updatedTask.id)
+  if (index !== -1) {
+    process.value.tasks[index] = { ...process.value.tasks[index], ...updatedTask }
+    
+    // Пересчитываем граф
+    const { nodes, edges } = calculateLayout(process.value.tasks)
+    elements.value = [...nodes, ...edges]
+    
     selectedTask.value = null
   }
 }
 
-const updateTask = (updatedTask) => {
-  const index = tasks.value.findIndex(t => t.id === updatedTask.id)
-  if (index !== -1) {
-    tasks.value[index] = updatedTask
-  }
-  selectedTask.value = null
-}
-
-// Zoom функции
-const zoomIn = () => {
-  scale.value *= 1.2
-  updateViewBox()
-}
-
-const zoomOut = () => {
-  scale.value *= 0.8
-  updateViewBox()
-}
-
-const resetZoom = () => {
-  scale.value = 1
-  updateViewBox()
-}
-
-const handleZoom = (event) => {
-  if (event.deltaY < 0) {
-    zoomIn()
-  } else {
-    zoomOut()
-  }
-}
-
-const updateViewBox = () => {
-  viewBox.value.width = 1200 / scale.value
-  viewBox.value.height = 500 / scale.value
-}
-
-// Таймер
-const startTimer = () => {
-  if (process.value.startTime) {
-    const start = new Date(process.value.startTime).getTime()
-    timerInterval = setInterval(() => {
-      timer.value = Math.floor((Date.now() - start) / 1000)
-    }, 1000)
-  }
+const goBack = () => {
+  router.push('/dashboard')
 }
 
 onMounted(() => {
-  startTimer()
-})
-
-onUnmounted(() => {
-  if (timerInterval) clearInterval(timerInterval)
+  fetchProcess()
 })
 </script>
 
@@ -268,17 +271,17 @@ onUnmounted(() => {
   height: calc(100vh - 140px);
   display: flex;
   flex-direction: column;
-  background: var(--color-background);
-  position: relative;
 }
 
 .process-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
   padding: 12px 20px;
   border-bottom: 2px solid var(--color-text);
   background: var(--color-background);
+  z-index: 10;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .tool-btn {
@@ -291,10 +294,6 @@ onUnmounted(() => {
   color: var(--color-text);
 }
 
-.tool-btn .icon {
-  font-size: 1.1rem;
-}
-
 .process-name {
   flex: 1;
   font-weight: bold;
@@ -302,67 +301,54 @@ onUnmounted(() => {
   margin-left: 20px;
 }
 
-.process-timer {
-  font-family: monospace;
-  font-size: 1.2rem;
-  background: rgba(0, 0, 0, 0.05);
+.process-status {
+  font-family: var(--font-1);
   padding: 4px 12px;
-  border-radius: 20px;
-}
-
-.graph-container {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  background: var(--color-background);
-}
-
-.graph-svg {
-  width: 100%;
-  height: 100%;
-  cursor: grab;
-}
-
-.graph-svg:active {
-  cursor: grabbing;
-}
-
-.zoom-controls {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  display: flex;
-  gap: 8px;
-}
-
-.zoom-controls button {
-  width: 36px;
-  height: 36px;
   border: 2px solid var(--color-text);
-  border-radius: 250px 150px 220px 150px/150px 225px 150px 255px;
+  border-radius: 15px;
+}
+
+.flow-container {
+  flex: 1;
+  width: 100%;
+}
+
+.status-message {
+  text-align: center;
+  padding: 2rem;
+  font-family: var(--font-1);
+  border: 2px dashed var(--color-text);
+  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+}
+
+.status-message.error {
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
+:deep(.vue-flow__node) {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+:deep(.vue-flow__edge-path) {
+  stroke-width: 2;
+}
+
+:deep(.vue-flow__controls) {
+  border: 2px solid var(--color-text);
+  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  overflow: hidden;
+}
+
+:deep(.vue-flow__controls-button) {
   background: var(--color-background);
+  border-bottom: 1px solid var(--color-text);
   color: var(--color-text);
-  cursor: pointer;
-  font-size: 1.2rem;
 }
 
-@media (max-width: 768px) {
-  .process-toolbar {
-    flex-wrap: wrap;
-  }
-  
-  .process-name {
-    width: 100%;
-    margin-left: 0;
-    order: -1;
-  }
-}
-
-.graph-svg foreignObject {
-  overflow: visible;
-}
-
-.graph-svg {
-  overflow: visible;
+:deep(.vue-flow__background) {
+  background: var(--color-background);
 }
 </style>
