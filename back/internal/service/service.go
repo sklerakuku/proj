@@ -205,3 +205,8 @@ func (s *Service) DeleteTemplate(ctx context.Context, id int) error {
 func (s *Service) DeleteProcess(ctx context.Context, id int) error {
 	return s.repo.DeleteProcess(ctx, id)
 }
+
+// ArchiveProcess - архивировать процесс
+func (s *Service) ArchiveProcess(ctx context.Context, id int) error {
+	return s.repo.UpdateProcessStatus(ctx, id, "archived")
+}

@@ -5,7 +5,12 @@
       <div class="process-name">{{ process.title }}</div>
       <div class="process-status" :class="'status-' + process.status">{{ process.status }}</div>
       <button class="tool-btn" @click="showAddTask = true">+ Task</button>
-      <button class="tool-btn" v-if="selectedTaskForLink" @click="cancelLink">✕ Cancel Link</button>
+      <button 
+        v-if="process.status === 'done'" 
+        class="tool-btn" 
+        @click="archiveProcess"
+      >Archive</button>
+      <button class="tool-btn" v-if="selectedTaskForLink" @click="cancelLink">✕</button>
     </div>
 
     <div v-if="loading" class="status-message">Loading...</div>
@@ -70,7 +75,7 @@
     </form>
   </div>
 </div>
-  </div>
+</div>
 </template>
 
 <script setup>
@@ -214,6 +219,16 @@ const updateProcessStatus = async () => {
     process.value.status = 'done'
     const { nodes, edges } = calculateLayout(tasks)
     elements.value = [...nodes, ...edges]
+  }
+}
+
+const archiveProcess = async () => {
+  if (!confirm('Archive this process?')) return
+  try {
+    await apiCall(`/processes/archive/${processId.value}`, { method: 'PATCH' })
+    process.value.status = 'archived'
+  } catch (err) {
+    alert(`Failed to archive: ${err.message}`)
   }
 }
 

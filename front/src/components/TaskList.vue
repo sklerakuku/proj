@@ -4,9 +4,7 @@
       <div class="processes-header">
         <h2>Active Processes ({{ activeProcesses.length }})</h2>
         <div class="header-buttons">
-          <button class="action-btn" @click="showTemplateModal = true">
-            From Template
-          </button>
+          <button class="action-btn" @click="showTemplateModal = true">From Template</button>
           <button class="action-btn plus" @click="showCreateModal = true">+</button>
         </div>
       </div>
@@ -22,18 +20,34 @@
           @click="openProcess(process.id)"
         />
         <div v-if="activeProcesses.length === 0" class="status-message">
-          No processes yet. Create one to get started!
+          No active processes. Create one to get started!
         </div>
       </div>
 
-      <!-- History (завершенные процессы) -->
+      <!-- Completed -->
       <div v-if="completedProcesses.length > 0" class="completed-section">
         <div class="completed-header" @click="showCompleted = !showCompleted">
-          <h3>History ({{ completedProcesses.length }}) <span>{{ showCompleted ? '▼' : '▶' }}</span></h3>
+          <h3>Completed ({{ completedProcesses.length }}) <span>{{ showCompleted ? '▼' : '▶' }}</span></h3>
         </div>
         <div v-if="showCompleted" class="completed-grid">
           <ProcessCard 
             v-for="process in completedProcesses" 
+            :key="process.id"
+            :process="process"
+            :completed="true"
+            @click="openProcess(process.id)"
+          />
+        </div>
+      </div>
+
+      <!-- History (archived) -->
+      <div v-if="archivedProcesses.length > 0" class="completed-section">
+        <div class="completed-header" @click="showArchived = !showArchived">
+          <h3>History ({{ archivedProcesses.length }}) <span>{{ showArchived ? '▼' : '▶' }}</span></h3>
+        </div>
+        <div v-if="showArchived" class="completed-grid">
+          <ProcessCard 
+            v-for="process in archivedProcesses" 
             :key="process.id"
             :process="process"
             :completed="true"
@@ -87,6 +101,7 @@ const templates = ref([])
 const loading = ref(true)
 const error = ref(null)
 const showCompleted = ref(false)
+const showArchived = ref(false)
 
 const showCreateModal = ref(false)
 const showTemplateModal = ref(false)
@@ -124,8 +139,15 @@ const apiCall = async (url, options = {}) => {
   return response.json()
 }
 
-const activeProcesses = computed(() => processes.value.filter(p => p.status !== 'done'))
-const completedProcesses = computed(() => processes.value.filter(p => p.status === 'done'))
+const activeProcesses = computed(() => 
+  processes.value.filter(p => p.status !== 'done' && p.status !== 'archived')
+)
+const completedProcesses = computed(() => 
+  processes.value.filter(p => p.status === 'done')
+)
+const archivedProcesses = computed(() => 
+  processes.value.filter(p => p.status === 'archived')
+)
 
 const fetchProcesses = async () => {
   loading.value = true

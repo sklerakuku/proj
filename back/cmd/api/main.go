@@ -71,6 +71,7 @@ func main() {
 	http.HandleFunc("POST /processes/empty", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.CreateEmptyProcess))))
 	http.HandleFunc("GET /processes", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.ListProcesses))))
 	http.HandleFunc("GET /processes/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.GetProcess))))
+	http.HandleFunc("PATCH /processes/archive/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.ArchiveProcess))))
 
 	// Task routes
 	http.HandleFunc("PATCH /tasks/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.UpdateTaskStatus))))

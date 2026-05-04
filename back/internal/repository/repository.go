@@ -362,3 +362,9 @@ func (r *Repository) DeleteProcess(ctx context.Context, id int) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM processes WHERE id = $1`, id)
 	return err
 }
+
+// UpdateProcessStatus - обновить статус процесса
+func (r *Repository) UpdateProcessStatus(ctx context.Context, id int, status string) error {
+	_, err := r.db.Exec(ctx, `UPDATE processes SET status = $1 WHERE id = $2`, status, id)
+	return err
+}

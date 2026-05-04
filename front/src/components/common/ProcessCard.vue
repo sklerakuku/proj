@@ -4,7 +4,7 @@
     <div class="card-row-1">
       <h3>{{ process.title || 'Untitled Process' }}</h3>
       <span v-if="currentTask" class="stage-timer" :class="{ overdue: isOverdue }">
-        ⏱️ {{ stageDuration }}
+        ⏱ {{ stageDuration }}
       </span>
     </div>
     
@@ -20,7 +20,7 @@
     <div class="card-row-3">
       <div class="breadcrumbs">
         <template v-for="(task, idx) in tasksList" :key="task.id">
-          <span v-if="idx > 0 && idx < tasksList.length" class="crumb-arrow">→</span>
+          <span v-if="idx > 0 && idx < tasksList.length" class="crumb-arrow">></span>
           <span class="crumb" :class="crumbClass(task)">{{ task.title }}</span>
         </template>
       </div>

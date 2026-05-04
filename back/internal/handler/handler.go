@@ -471,3 +471,20 @@ func (h *Handler) DeleteProcess(w http.ResponseWriter, r *http.Request) {
 
 	h.respondJSON(w, http.StatusOK, SuccessResponse{Message: "process deleted"})
 }
+
+// ArchiveProcess - архивировать процесс
+func (h *Handler) ArchiveProcess(w http.ResponseWriter, r *http.Request) {
+	idStr := strings.TrimPrefix(r.URL.Path, "/processes/archive/")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid process id")
+		return
+	}
+
+	if err := h.service.ArchiveProcess(r.Context(), id); err != nil {
+		h.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, SuccessResponse{Message: "process archived"})
+}

@@ -25,10 +25,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 const isAuthenticated = ref(false)
 const username = ref('')
 const showMenu = ref(false)
@@ -36,6 +37,30 @@ const isAdmin = ref(false)
 
 const avatarLetter = computed(() => {
   return username.value ? username.value.charAt(0).toUpperCase() : '?'
+})
+
+const updateAuthState = () => {
+  const token = localStorage.getItem('auth_token')
+  const user = localStorage.getItem('user')
+  
+  if (token && user) {
+    isAuthenticated.value = true
+    try {
+      const userData = JSON.parse(user)
+      username.value = userData.username || 'User'
+      isAdmin.value = userData.role === 'admin'
+    } catch (e) {
+      username.value = 'User'
+    }
+  } else {
+    isAuthenticated.value = false
+    username.value = ''
+    isAdmin.value = false
+  }
+}
+
+watch(() => route.path, () => {
+  updateAuthState()
 })
 
 const toggleMenu = () => {
@@ -65,26 +90,6 @@ const logout = () => {
   isAdmin.value = false
   showMenu.value = false
   router.push('/login')
-}
-
-const updateAuthState = () => {
-  const token = localStorage.getItem('auth_token')
-  const user = localStorage.getItem('user')
-  
-  if (token && user) {
-    isAuthenticated.value = true
-    try {
-      const userData = JSON.parse(user)
-      username.value = userData.username || 'User'
-      isAdmin.value = userData.role === 'admin'
-    } catch (e) {
-      username.value = 'User'
-    }
-  } else {
-    isAuthenticated.value = false
-    username.value = ''
-    isAdmin.value = false
-  }
 }
 
 const handleClickOutside = (event) => {
