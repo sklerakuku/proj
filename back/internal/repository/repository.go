@@ -137,9 +137,20 @@ func (r *Repository) AddTemplateDependency(ctx context.Context, taskID, dependsO
 // Process methods
 func (r *Repository) CreateProcess(ctx context.Context, templateID int, title, status string) (*model.Process, error) {
 	var process model.Process
-	query := `INSERT INTO processes (template_id, title, status) VALUES ($1, $2, $3) 
-	          RETURNING id, title, status`
-	err := r.db.QueryRow(ctx, query, templateID, title, status).Scan(&process.ID, &process.Title, &process.Status)
+	var err error
+
+	if templateID == 0 {
+		// Создание без шаблона
+		query := `INSERT INTO processes (title, status) VALUES ($1, $2) 
+		          RETURNING id, title, status`
+		err = r.db.QueryRow(ctx, query, title, status).Scan(&process.ID, &process.Title, &process.Status)
+	} else {
+		// Создание из шаблона
+		query := `INSERT INTO processes (template_id, title, status) VALUES ($1, $2, $3) 
+		          RETURNING id, title, status`
+		err = r.db.QueryRow(ctx, query, templateID, title, status).Scan(&process.ID, &process.Title, &process.Status)
+	}
+
 	if err != nil {
 		return nil, err
 	}

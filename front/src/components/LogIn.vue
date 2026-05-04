@@ -188,12 +188,12 @@ form {
 
 .sketch-input:focus {
   outline: none;
-  border-color: #4a90e2;
+  border-color: var(--color-primary);
   transform: scale(1.02);
 }
 
 .sketch-input.error {
-  border-color: #ff4444;
+  border-color: var(--color-danger);
 }
 
 .sketch-input::placeholder {
@@ -203,7 +203,7 @@ form {
 
 .error-message {
   display: block;
-  color: #ff4444;
+  color: var(--color-danger);
   font-size: 0.75rem;
   margin-top: 0.25rem;
   padding-left: 0.5rem;
@@ -258,9 +258,9 @@ form {
   margin-top: 1rem;
   padding: 0.75rem;
   background: rgba(255, 68, 68, 0.1);
-  border: 1px solid #ff4444;
+  border: 1px solid var(--color-danger);
   border-radius: 8px;
-  color: #ff4444;
+  color: var(--color-danger);
   text-align: center;
   font-size: 0.875rem;
   width: 100%;

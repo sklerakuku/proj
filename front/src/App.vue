@@ -1,12 +1,14 @@
 <template>
   <div>
-    <header v-if="isAuthenticated">
-      <h1>Tasks Workflow Manager</h1>
-      <div class="user" @click="toggleMenu">
+    <!-- Заголовок видно ВСЕГДА -->
+    <header>
+      <h1 @click="goHome" class="logo">Tasks Workflow Manager</h1>
+      <div v-if="isAuthenticated" class="user" @click="toggleMenu">
         <h3 class="name">{{ username }}</h3>
         <div class="user-picture">{{ avatarLetter }}</div>
-        <div v-if="showMenu" class="dropdown-menu">
+        <div v-if="showMenu" class="dropdown-menu" @click.stop>
           <button @click="goToProfile">Profile</button>
+          <button v-if="isAdmin" @click="goToAdmin">Admin Panel</button>
           <button @click="logout">Logout</button>
         </div>
       </div>
@@ -16,20 +18,21 @@
       <router-view></router-view>
     </main>
 
-    <footer v-if="isAuthenticated">
+    <footer>
       <p> &copy; {{ new Date().getFullYear() }} =^-^=</p>
     </footer>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const isAuthenticated = ref(false)
 const username = ref('')
 const showMenu = ref(false)
+const isAdmin = ref(false)
 
 const avatarLetter = computed(() => {
   return username.value ? username.value.charAt(0).toUpperCase() : '?'
@@ -39,26 +42,32 @@ const toggleMenu = () => {
   showMenu.value = !showMenu.value
 }
 
+const goHome = () => {
+  if (isAuthenticated.value) {
+    router.push('/dashboard')
+  }
+}
+
 const goToProfile = () => {
   showMenu.value = false
   router.push('/profile')
+}
+
+const goToAdmin = () => {
+  showMenu.value = false
+  router.push('/admin')
 }
 
 const logout = () => {
   localStorage.removeItem('auth_token')
   localStorage.removeItem('user')
   isAuthenticated.value = false
+  isAdmin.value = false
+  showMenu.value = false
   router.push('/login')
 }
 
-// Закрыть меню при клике вне
-const handleClickOutside = (event) => {
-  if (!event.target.closest('.user')) {
-    showMenu.value = false
-  }
-}
-
-onMounted(() => {
+const updateAuthState = () => {
   const token = localStorage.getItem('auth_token')
   const user = localStorage.getItem('user')
   
@@ -67,12 +76,32 @@ onMounted(() => {
     try {
       const userData = JSON.parse(user)
       username.value = userData.username || 'User'
+      isAdmin.value = userData.role === 'admin'
     } catch (e) {
       username.value = 'User'
     }
+  } else {
+    isAuthenticated.value = false
+    username.value = ''
+    isAdmin.value = false
   }
-  
+}
+
+const handleClickOutside = (event) => {
+  if (!event.target.closest('.user')) {
+    showMenu.value = false
+  }
+}
+
+onMounted(() => {
+  updateAuthState()
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('storage', updateAuthState)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('storage', updateAuthState)
 })
 </script>
 
@@ -80,61 +109,48 @@ onMounted(() => {
 header {
   position: sticky;
   top: 0;
-  padding: 1rem 15%;
+  padding: 1rem 5%;
   background: var(--color-background);
   color: var(--color-text);
-  border-bottom: 2px solid var(--color-text);
-  transform: rotate(-0.5deg);
+  border-bottom: 2px solid var(--color-border);
   font-family: var(--font-1);
   font-size: 1.5rem;
-  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  border-radius: var(--radius-sketch);
   backdrop-filter: blur(10px);
   z-index: 100;
   display: flex;
   justify-content: space-between;
-}
-
-header h1 {
-  margin: 0;
-  font-size: inherit;
-}
-
-.user {
-  display: flex;
   align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  position: relative;
 }
 
-.name {
-  font-size: 1rem;
-  margin: 0;
-}
+.logo { margin: 0; font-size: inherit; cursor: pointer; }
+.logo:hover { opacity: 0.8; }
+
+.user { display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative; }
+
+.name { font-size: 1rem; margin: 0; }
 
 .user-picture {
-  width: 40px;
-  height: 40px;
+  width: 40px; height: 40px;
   border-radius: 50%;
-  background: #4a90e2;
+  background: var(--color-primary);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
   font-size: 1.2rem;
-  border: 2px solid var(--color-text);
+  border: 2px solid var(--color-border);
 }
 
 .dropdown-menu {
   position: absolute;
-  top: 50px;
-  right: 0;
+  top: 50px; right: 0;
   background: var(--color-background);
-  border: 2px solid var(--color-text);
-  border-radius: 15px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: 8px 0;
-  min-width: 120px;
+  min-width: 160px;
   z-index: 200;
 }
 
@@ -148,25 +164,10 @@ header h1 {
   font-family: var(--font-1);
   cursor: pointer;
   color: var(--color-text);
+  transition: background 0.15s;
 }
 
-.dropdown-menu button:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.nav-link {
-  color: var(--color-text);
-  text-decoration: none;
-  font-size: 0.9rem;
-  padding: 4px 8px;
-  border-radius: 15px;
-  transition: all 0.1s ease;
-}
-
-.nav-link:hover {
-  background: rgba(0, 0, 0, 0.05);
-  transform: translateY(-1px);
-}
+.dropdown-menu button:hover { background: var(--color-hover); }
 
 main {
   display: flex;
@@ -180,21 +181,8 @@ main {
 footer {
   font-family: var(--font-1);
   text-align: center;
-  margin: 0;
-  color: var(--color-text);
-  opacity: 0.7;
+  color: var(--color-text-secondary);
   font-size: 0.75rem;
-  transform: rotate(0.5deg);
-}
-
-@media (max-width: 768px) {
-  header {
-    padding: 1rem 5%;
-    font-size: 1.2rem;
-  }
-  
-  main {
-    padding: 1rem;
-  }
+  padding: 1rem;
 }
 </style>

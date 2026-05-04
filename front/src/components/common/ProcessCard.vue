@@ -1,16 +1,28 @@
 <template>
-  <div class="process-card" @click="$emit('click')">
-    <div class="card-header">
+  <div class="process-card" :class="{ 'card-completed': completed }" @click="$emit('click')">
+    <!-- Строка 1: Название и таймер текущего этапа -->
+    <div class="card-row-1">
       <h3>{{ process.title || 'Untitled Process' }}</h3>
-      <span class="status-badge" :class="statusClass">{{ process.status }}</span>
+      <span v-if="currentTask" class="stage-timer" :class="{ overdue: isOverdue }">
+        ⏱️ {{ stageDuration }}
+      </span>
     </div>
     
-    <div class="card-body">
-      <div class="progress-info">
-        <span>{{ completedTasks }} / {{ totalTasks }} tasks</span>
-      </div>
-      <div class="timer" v-if="process.started_at">
-        <span>⏱️ Started: {{ formatDate(process.started_at) }}</span>
+    <!-- Строка 2: Счётчик этапов и ожидание -->
+    <div class="card-row-2">
+      <span class="task-counter">{{ completedTasks }}/{{ totalTasks }} tasks</span>
+      <span v-if="waitingFor" class="waiting-badge">
+        waiting {{ waitingFor }}
+      </span>
+    </div>
+    
+    <!-- Строка 3: Хлебные крошки этапов -->
+    <div class="card-row-3">
+      <div class="breadcrumbs">
+        <template v-for="(task, idx) in tasksList" :key="task.id">
+          <span v-if="idx > 0 && idx < tasksList.length" class="crumb-arrow">→</span>
+          <span class="crumb" :class="crumbClass(task)">{{ task.title }}</span>
+        </template>
       </div>
     </div>
   </div>
@@ -20,81 +32,153 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  process: {
-    type: Object,
-    required: true
-  }
+  process: { type: Object, required: true },
+  completed: { type: Boolean, default: false }
 })
 
 defineEmits(['click'])
 
-const statusClass = computed(() => {
-  switch (props.process.status) {
-    case 'done': return 'status-done'
-    case 'in_progress': return 'status-progress'
-    case 'draft': return 'status-draft'
-    default: return 'status-pending'
-  }
+const tasksList = computed(() => props.process.tasks || [])
+const totalTasks = computed(() => tasksList.value.length)
+const completedTasks = computed(() => tasksList.value.filter(t => t.status === 'done').length)
+
+const currentTask = computed(() => {
+  return tasksList.value.find(t => t.status === 'in_progress') || null
 })
 
-const totalTasks = computed(() => props.process.tasks?.length || 0)
-const completedTasks = computed(() => props.process.tasks?.filter(t => t.status === 'done').length || 0)
+const stageDuration = computed(() => {
+  if (!currentTask.value?.started_at) return 'not started'
+  const start = new Date(currentTask.value.started_at)
+  const now = new Date()
+  const hours = Math.floor((now - start) / (1000 * 60 * 60))
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  return `${days}d ${hours % 24}h`
+})
+
+const isOverdue = computed(() => {
+  if (!currentTask.value?.started_at) return false
+  const start = new Date(currentTask.value.started_at)
+  const now = new Date()
+  const days = (now - start) / (1000 * 60 * 60 * 24)
+  return days > 7
+})
+
+const waitingFor = computed(() => {
+  const task = currentTask.value
+  if (!task) return null
+  return task.for_role || task.users?.[0]?.username || 'assignee'
+})
+
+const crumbClass = (task) => ({
+  'crumb-done': task.status === 'done',
+  'crumb-active': task.status === 'in_progress',
+  'crumb-pending': task.status === 'pending'
+})
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
-  try {
-    return new Date(dateStr).toLocaleDateString()
-  } catch {
-    return dateStr
-  }
+  try { return new Date(dateStr).toLocaleDateString() } catch { return dateStr }
 }
 </script>
 
 <style scoped>
 .process-card {
   padding: 1.2rem;
-  border: 2px solid var(--color-text);
-  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sketch);
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: all 0.2s ease;
   background: var(--color-background);
 }
-
 .process-card:hover {
   transform: translateY(-3px);
-  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card-hover);
+}
+.card-completed {
+  opacity: 0.6;
+  border-left: 6px solid var(--status-done);
 }
 
-.card-header {
+.card-row-1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
+  margin-bottom: 8px;
 }
-
-.card-header h3 {
+.card-row-1 h3 {
   margin: 0;
   font-family: var(--font-1);
+  font-size: 1.1rem;
+}
+.stage-timer {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-hover);
+  white-space: nowrap;
+}
+.stage-timer.overdue {
+  color: var(--color-danger);
+  background: var(--color-danger-light);
 }
 
-.status-badge {
+.card-row-2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+.task-counter {
+  opacity: 0.7;
   font-family: var(--font-1);
-  font-size: 0.8rem;
-  padding: 4px 10px;
-  border-radius: 15px;
-  background: rgba(0,0,0,0.05);
+}
+.waiting-badge {
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-info-light);
+  color: var(--color-info);
+  font-style: italic;
 }
 
-.status-draft { color: #888; }
-.status-progress { color: #ff9800; }
-.status-done { color: #4caf50; }
-
-.card-body {
-  font-size: 0.9rem;
+.card-row-3 {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-muted-light);
 }
 
-.progress-info, .timer {
-  margin: 4px 0;
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 0.7rem;
+}
+
+.crumb {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-hover);
+  white-space: nowrap;
+}
+.crumb-done {
+  background: var(--status-done-bg);
+  color: var(--status-done);
+}
+.crumb-active {
+  background: var(--status-progress-bg);
+  color: var(--status-progress);
+  font-weight: bold;
+}
+.crumb-pending {
+  background: var(--status-pending-bg);
+  color: var(--status-pending);
+}
+
+.crumb-arrow {
+  opacity: 0.4;
+  font-size: 0.6rem;
 }
 </style>

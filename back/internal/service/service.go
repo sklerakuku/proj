@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/sklerakuku/tracker-web/internal/model"
 	"github.com/sklerakuku/tracker-web/internal/repository"
@@ -82,38 +83,62 @@ func (s *Service) GetTemplate(ctx context.Context, id int) (*model.Template, err
 func (s *Service) CreateProcessFromTemplate(ctx context.Context, templateID int, title string) (*model.Process, error) {
 	template, err := s.repo.GetTemplateByID(ctx, templateID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("template not found: %w", err)
+	}
+
+	if len(template.Tasks) == 0 {
+		return nil, errors.New("cannot create process from empty template")
 	}
 
 	process, err := s.repo.CreateProcess(ctx, templateID, title, "draft")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create process: %w", err)
 	}
 
-	taskIDMap := make(map[int]int) // template_task_id -> task_id
+	taskIDMap := make(map[int]int)
 
 	for _, tt := range template.Tasks {
 		taskID, err := s.repo.CreateTask(ctx, process.ID, tt.Title, tt.ForRole, tt.IsFileRequired, tt.PlanHours)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create task '%s': %w", tt.Title, err)
 		}
 		taskIDMap[tt.ID] = taskID
 	}
 
 	for _, tt := range template.Tasks {
 		for _, depTemplateID := range tt.DependsOn {
-			if taskID, ok := taskIDMap[tt.ID]; ok {
-				if depTaskID, ok := taskIDMap[depTemplateID]; ok {
-					err = s.repo.AddTaskDependency(ctx, taskID, depTaskID)
-					if err != nil {
-						return nil, err
-					}
-				}
+			taskID, ok := taskIDMap[tt.ID]
+			if !ok {
+				continue
+			}
+			depTaskID, ok := taskIDMap[depTemplateID]
+			if !ok {
+				continue
+			}
+			err = s.repo.AddTaskDependency(ctx, taskID, depTaskID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to add dependency: %w", err)
 			}
 		}
 	}
 
 	return s.repo.GetProcessByID(ctx, process.ID)
+}
+
+// CreateEmptyProcess - создание процесса без шаблона
+func (s *Service) CreateEmptyProcess(ctx context.Context, title string) (*model.Process, error) {
+	if title == "" {
+		return nil, errors.New("title is required")
+	}
+
+	process, err := s.repo.CreateProcess(ctx, 0, title, "draft")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create process: %w", err)
+	}
+
+	// Возвращаем процесс с пустым списком задач
+	process.Tasks = model.Tasks{}
+	return process, nil
 }
 
 func (s *Service) GetProcess(ctx context.Context, id int) (*model.Process, error) {

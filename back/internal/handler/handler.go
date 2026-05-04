@@ -245,6 +245,31 @@ func (h *Handler) CreateProcess(w http.ResponseWriter, r *http.Request) {
 	h.respondJSON(w, http.StatusCreated, process)
 }
 
+// CreateEmptyProcess - создание процесса без шаблона
+func (h *Handler) CreateEmptyProcess(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Title string `json:"title"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+
+	if req.Title == "" {
+		h.respondError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+
+	process, err := h.service.CreateEmptyProcess(r.Context(), req.Title)
+	if err != nil {
+		h.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.respondJSON(w, http.StatusCreated, process)
+}
+
 // GetProcess godoc
 // @Summary Получение процесса по ID
 // @Description Возвращает процесс со всеми задачами и зависимостями

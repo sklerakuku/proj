@@ -68,6 +68,7 @@ func main() {
 
 	// Process routes
 	http.HandleFunc("POST /processes", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.CreateProcess))))
+	http.HandleFunc("POST /processes/empty", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.CreateEmptyProcess))))
 	http.HandleFunc("GET /processes", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.ListProcesses))))
 	http.HandleFunc("GET /processes/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.GetProcess))))
 

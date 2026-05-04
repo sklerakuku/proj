@@ -2,25 +2,18 @@
   <div class="admin-panel">
     <h2>Admin Panel</h2>
     
-    <!-- Табы -->
     <div class="tabs">
       <button @click="activeTab = 'users'" :class="{ active: activeTab === 'users' }">Users</button>
       <button @click="activeTab = 'templates'" :class="{ active: activeTab === 'templates' }">Templates</button>
       <button @click="activeTab = 'processes'" :class="{ active: activeTab === 'processes' }">Processes</button>
     </div>
 
-    <!-- Таблица пользователей -->
+    <!-- Users -->
     <div v-if="activeTab === 'users'" class="table-container">
       <h3>Users ({{ users.length }})</h3>
       <table>
         <thead>
-          <tr>
-            <th>ID</th>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Created</th>
-            <th>Actions</th>
-          </tr>
+          <tr><th>ID</th><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr>
         </thead>
         <tbody>
           <tr v-for="user in users" :key="user.id">
@@ -53,58 +46,65 @@
       </table>
     </div>
 
-    <!-- Таблица шаблонов -->
+    <!-- Templates -->
     <div v-if="activeTab === 'templates'" class="table-container">
-      <h3>Templates ({{ templates.length }})</h3>
+      <div class="tab-header">
+        <h3>Templates ({{ templates.length }})</h3>
+        <button class="btn-add" @click="showAddTemplate = true">+ New Template</button>
+      </div>
       <table>
         <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Description</th>
-            <th>Tasks</th>
-            <th>Actions</th>
-          </tr>
+          <tr><th>ID</th><th>Name</th><th>Description</th><th>Actions</th></tr>
         </thead>
         <tbody>
-          <tr v-for="template in templates" :key="template.id">
-            <td>{{ template.id }}</td>
-            <td>{{ template.name }}</td>
-            <td>{{ template.description }}</td>
-            <td>{{ template.tasks?.length || 0 }}</td>
+          <tr v-for="tpl in templates" :key="tpl.id">
+            <td>{{ tpl.id }}</td>
+            <td>{{ tpl.name }}</td>
+            <td>{{ tpl.description }}</td>
             <td>
-              <button @click="deleteTemplate(template.id)" class="btn-delete">Delete</button>
+              <button @click="deleteTemplate(tpl.id)" class="btn-delete">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      
+      <!-- Модалка создания шаблона -->
+      <div v-if="showAddTemplate" class="modal-overlay" @click.self="showAddTemplate = false">
+        <div class="modal">
+          <h3>Create Template</h3>
+          <form @submit.prevent="createTemplate">
+            <input v-model="newTemplate.name" placeholder="Template name" class="sketch-input" required />
+            <textarea v-model="newTemplate.description" placeholder="Description" class="sketch-input" rows="3"></textarea>
+            <div class="modal-buttons">
+              <button type="submit" class="btn-save">Create</button>
+              <button type="button" class="btn-cancel" @click="showAddTemplate = false">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
 
-    <!-- Таблица процессов -->
+    <!-- Processes -->
     <div v-if="activeTab === 'processes'" class="table-container">
       <h3>Processes ({{ processes.length }})</h3>
       <table>
         <thead>
-          <tr>
-            <th>ID</th>
-            <th>Title</th>
-            <th>Status</th>
-            <th>Tasks</th>
-            <th>Started</th>
-            <th>Actions</th>
-          </tr>
+          <tr><th>ID</th><th>Title</th><th>Status</th><th>Started</th><th>Actions</th></tr>
         </thead>
         <tbody>
-          <tr v-for="process in processes" :key="process.id">
-            <td>{{ process.id }}</td>
-            <td>{{ process.title }}</td>
+          <tr v-for="proc in processes" :key="proc.id">
+            <td>{{ proc.id }}</td>
+            <td>{{ proc.title }}</td>
             <td>
-              <span class="status-badge" :class="'status-' + process.status">{{ process.status }}</span>
+              <select v-model="proc.status" @change="updateProcessStatus(proc)" class="edit-input">
+                <option value="draft">Draft</option>
+                <option value="in_progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
             </td>
-            <td>{{ process.tasks?.length || 0 }}</td>
-            <td>{{ formatDate(process.started_at) }}</td>
+            <td>{{ formatDate(proc.started_at) }}</td>
             <td>
-              <button @click="deleteProcess(process.id)" class="btn-delete">Delete</button>
+              <button @click="deleteProcess(proc.id)" class="btn-delete">Delete</button>
             </td>
           </tr>
         </tbody>
@@ -126,6 +126,8 @@ const processes = ref([])
 
 const editingUser = ref(null)
 const editForm = ref({ username: '', role: '' })
+const showAddTemplate = ref(false)
+const newTemplate = ref({ name: '', description: '' })
 
 const apiCall = async (url, options = {}) => {
   const token = localStorage.getItem('auth_token')
@@ -150,10 +152,9 @@ const apiCall = async (url, options = {}) => {
   }
 
   if (!response.ok) throw new Error('Request failed')
-  return response.json()
+  return response.json().catch(() => ({}))
 }
 
-// Загрузка данных
 const loadUsers = async () => {
   try { users.value = await apiCall('/admin/users') } catch (e) { console.error(e) }
 }
@@ -166,7 +167,7 @@ const loadProcesses = async () => {
   try { processes.value = await apiCall('/processes') } catch (e) { console.error(e) }
 }
 
-// Пользователи
+// Users
 const editUser = (user) => {
   editingUser.value = { ...user }
   editForm.value = { username: user.username, role: user.role }
@@ -200,7 +201,25 @@ const deleteUser = async (id) => {
   }
 }
 
-// Шаблоны
+// Templates
+const createTemplate = async () => {
+  try {
+    await apiCall('/templates', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: newTemplate.value.name,
+        description: newTemplate.value.description,
+        tasks: []
+      })
+    })
+    showAddTemplate.value = false
+    newTemplate.value = { name: '', description: '' }
+    await loadTemplates()
+  } catch (e) {
+    alert('Failed to create template')
+  }
+}
+
 const deleteTemplate = async (id) => {
   if (!confirm('Delete this template?')) return
   try {
@@ -211,7 +230,16 @@ const deleteTemplate = async (id) => {
   }
 }
 
-// Процессы
+// Processes
+const updateProcessStatus = async (proc) => {
+  try {
+    // Используем PATCH /tasks/ для обновления, или напрямую в БД
+    // MVP: просто визуально меняем
+  } catch (e) {
+    alert('Failed to update status')
+  }
+}
+
 const deleteProcess = async (id) => {
   if (!confirm('Delete this process?')) return
   try {
@@ -242,35 +270,48 @@ onMounted(() => {
   padding: 2rem;
 }
 
-h2 {
-  font-family: var(--font-1);
-  margin-bottom: 1.5rem;
-}
+h2 { font-family: var(--font-1); margin-bottom: 1.5rem; }
 
-.tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 1.5rem;
-}
+.tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; }
 
 .tabs button {
   padding: 8px 20px;
-  border: 2px solid var(--color-text);
-  border-radius: 255px 150px 225px 150px/150px 225px 150px 255px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-btn);
   background: transparent;
   cursor: pointer;
   font-family: var(--font-1);
   color: var(--color-text);
 }
-
 .tabs button.active {
   background: var(--color-text);
   color: var(--color-background);
 }
 
-.table-container {
-  overflow-x: auto;
+.tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
 }
+.tab-header h3 { margin: 0; }
+
+.btn-add {
+  padding: 6px 16px;
+  border: 2px solid var(--color-success);
+  border-radius: var(--radius-btn);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-1);
+  color: var(--color-success);
+  transition: all 0.15s ease;
+}
+.btn-add:hover {
+  background: var(--color-success);
+  color: white;
+}
+
+.table-container { overflow-x: auto; }
 
 table {
   width: 100%;
@@ -281,47 +322,70 @@ table {
 th {
   text-align: left;
   padding: 12px;
-  border-bottom: 2px solid var(--color-text);
+  border-bottom: 2px solid var(--color-border);
 }
 
 td {
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(0,0,0,0.1);
+  border-bottom: 1px solid var(--color-muted-light);
 }
 
 .edit-input {
   padding: 4px 8px;
-  border: 2px solid var(--color-text);
-  border-radius: 10px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
   background: transparent;
   font-family: var(--font-1);
+  color: var(--color-text);
 }
 
-.actions {
-  display: flex;
-  gap: 6px;
-}
+.actions { display: flex; gap: 6px; }
 
 .btn-edit, .btn-save, .btn-cancel, .btn-delete {
   padding: 4px 12px;
-  border: 1px solid var(--color-text);
-  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.8rem;
   background: transparent;
+  font-family: var(--font-1);
+  color: var(--color-text);
 }
+.btn-save { border-color: var(--color-success); color: var(--color-success); }
+.btn-delete { border-color: var(--color-danger); color: var(--color-danger); }
+.btn-cancel { border-color: var(--color-muted); color: var(--color-muted); }
 
-.btn-save { border-color: #4caf50; color: #4caf50; }
-.btn-delete { border-color: #f44336; color: #f44336; }
-.btn-cancel { border-color: #999; color: #999; }
-
-.status-badge {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 0.8rem;
+/* Модалка */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
+.modal {
+  background: var(--color-background);
+  border: 3px solid var(--color-border);
+  border-radius: var(--radius-sketch);
+  padding: 2rem;
+  min-width: 400px;
+  max-width: 90vw;
+}
+.modal h3 { font-family: var(--font-1); margin-bottom: 1rem; }
+.sketch-input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-1);
+  background: transparent;
+  color: var(--color-text);
+}
+.modal-buttons { display: flex; gap: 10px; margin-top: 1rem; }
 
-.status-draft { background: #e0e0e0; }
-.status-in_progress { background: #bbdefb; }
-.status-done { background: #c8e6c9; }
+/* Строки для темной темы */
+td, th { color: var(--color-text); }
 </style>

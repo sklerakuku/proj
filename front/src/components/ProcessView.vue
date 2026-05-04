@@ -3,13 +3,18 @@
     <div class="process-toolbar">
       <button class="tool-btn" @click="goBack">← Back</button>
       <div class="process-name">{{ process.title }}</div>
-      <div class="process-status">Status: {{ process.status }}</div>
+      <div class="process-status" :class="'status-' + process.status">{{ process.status }}</div>
+      <button class="tool-btn" @click="showAddTask = true">+ Task</button>
+      <button class="tool-btn" v-if="selectedTaskForLink" @click="cancelLink">✕ Cancel Link</button>
     </div>
 
     <div v-if="loading" class="status-message">Loading...</div>
     <div v-else-if="error" class="status-message error">{{ error }}</div>
     
     <div v-else class="flow-container">
+      <div v-if="selectedTaskForLink" class="link-hint">
+        Click on another task to create dependency from "{{ selectedTaskForLink.title }}"
+      </div>
       <VueFlow
         v-model="elements"
         :node-types="nodeTypes"
@@ -17,6 +22,7 @@
         :min-zoom="0.2"
         :max-zoom="4"
         @node-click="onNodeClick"
+        @connect="onConnect"
       >
         <Background pattern-color="#aaa" :gap="16" />
         <Controls />
@@ -24,8 +30,9 @@
         <template #node-taskNode="{ data }">
           <TaskNode 
             :task="data.task"
-            @complete="completeTask"
+            @complete="(id) => completeTask(id)"
             @click="selectTask(data.task)"
+            @link="startLinking(data.task)"
           />
         </template>
       </VueFlow>
@@ -36,20 +43,45 @@
       :task="selectedTask"
       @close="selectedTask = null"
       @update="updateTask"
+      @complete="(id) => completeTask(id)"
     />
+
+    <!-- Модалка добавления задачи -->
+<div v-if="showAddTask" class="modal-overlay" @click.self="showAddTask = false">
+  <div class="modal">
+    <h3>Add New Task</h3>
+    <form @submit.prevent="addTask">
+      <input v-model="newTask.title" placeholder="Task title" class="sketch-input" required />
+      <select v-model="newTask.role" class="sketch-input">
+        <option value="worker">Worker</option>
+        <option value="manager">Manager</option>
+        <option value="admin">Admin</option>
+      </select>
+      <select v-model="newTask.dependsOn" class="sketch-input">
+        <option value="">No dependency (standalone)</option>
+        <option v-for="t in process.tasks" :key="t.id" :value="t.id">
+          After: {{ t.title }}
+        </option>
+      </select>
+      <div class="modal-buttons">
+        <button type="submit" class="btn-save">Add</button>
+        <button type="button" class="btn-cancel" @click="showAddTask = false">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, markRaw } from 'vue'
+import { ref, markRaw, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { VueFlow } from '@vue-flow/core'
+import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import TaskNode from './common/TaskNode.vue'
 import TaskSidebar from './common/TaskSidebar.vue'
 
-// Стили Vue Flow
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
@@ -62,13 +94,11 @@ const process = ref({ tasks: [] })
 const loading = ref(true)
 const error = ref(null)
 const selectedTask = ref(null)
+const selectedTaskForLink = ref(null)
+const showAddTask = ref(false)
+const newTask = ref({ title: '', role: 'worker', dependsOn: '' })
 
-// Типы узлов
-const nodeTypes = {
-  taskNode: markRaw(TaskNode)
-}
-
-// Элементы для VueFlow
+const nodeTypes = { taskNode: markRaw(TaskNode) }
 const elements = ref([])
 
 const apiCall = async (url, options = {}) => {
@@ -95,30 +125,22 @@ const apiCall = async (url, options = {}) => {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || `Request failed with status ${response.status}`)
+    throw new Error(errorData.error || `Request failed`)
   }
 
   return response.json()
 }
 
-// Функция расчета позиций для узлов графа
 const calculateLayout = (tasks) => {
   if (!tasks || tasks.length === 0) return { nodes: [], edges: [] }
   
   const nodes = []
   const edges = []
-  
-  // Простая схема: задачи располагаются слева направо
-  // Зависимые задачи правее
   const levels = {}
   const taskMap = {}
   
-  // Создаем карту задач
-  tasks.forEach(task => {
-    taskMap[task.id] = task
-  })
+  tasks.forEach(task => { taskMap[task.id] = task })
   
-  // Определяем уровень для каждой задачи
   const getLevel = (taskId, visited = new Set()) => {
     if (visited.has(taskId)) return 0
     if (levels[taskId] !== undefined) return levels[taskId]
@@ -137,7 +159,6 @@ const calculateLayout = (tasks) => {
   
   tasks.forEach(task => getLevel(task.id))
   
-  // Группируем задачи по уровням
   const tasksByLevel = {}
   tasks.forEach(task => {
     const level = levels[task.id] || 0
@@ -145,9 +166,8 @@ const calculateLayout = (tasks) => {
     tasksByLevel[level].push(task)
   })
   
-  // Создаем узлы с позициями
-  const levelGap = 250  // расстояние между уровнями
-  const nodeGap = 150   // расстояние между узлами на одном уровне
+  const levelGap = 250
+  const nodeGap = 150
   
   Object.keys(tasksByLevel).sort().forEach(level => {
     const tasksInLevel = tasksByLevel[level]
@@ -158,16 +178,12 @@ const calculateLayout = (tasks) => {
       nodes.push({
         id: task.id.toString(),
         type: 'taskNode',
-        position: { 
-          x: level * levelGap, 
-          y: startY + index * nodeGap 
-        },
+        position: { x: level * levelGap, y: startY + index * nodeGap },
         data: { task }
       })
     })
   })
   
-  // Создаем связи
   tasks.forEach(task => {
     if (task.depends_on) {
       task.depends_on.forEach(depId => {
@@ -178,7 +194,7 @@ const calculateLayout = (tasks) => {
           type: 'smoothstep',
           animated: task.status === 'in_progress',
           style: {
-            stroke: task.status === 'done' ? '#4caf50' : '#999',
+            stroke: task.status === 'done' ? 'var(--status-done)' : 'var(--color-muted)',
             strokeWidth: 2
           }
         })
@@ -189,22 +205,58 @@ const calculateLayout = (tasks) => {
   return { nodes, edges }
 }
 
+const updateProcessStatus = async () => {
+  const tasks = process.value.tasks || []
+  if (tasks.length === 0) return
+  
+  const allDone = tasks.every(t => t.status === 'done')
+  if (allDone && process.value.status !== 'done') {
+    process.value.status = 'done'
+    const { nodes, edges } = calculateLayout(tasks)
+    elements.value = [...nodes, ...edges]
+  }
+}
+
 const fetchProcess = async () => {
   loading.value = true
   error.value = null
   try {
     const data = await apiCall(`/processes/${processId.value}`)
     process.value = data
-    
-    // Рассчитываем раскладку
     const { nodes, edges } = calculateLayout(data.tasks || [])
     elements.value = [...nodes, ...edges]
-    
   } catch (err) {
     error.value = err.message
-    console.error(err)
   } finally {
     loading.value = false
+  }
+}
+
+const addTask = async () => {
+  try {
+    const taskId = Date.now()
+    const dependsOn = newTask.value.dependsOn ? [parseInt(newTask.value.dependsOn)] : []
+    
+    const newTaskObj = {
+      id: taskId,
+      process_id: parseInt(processId.value),
+      title: newTask.value.title,
+      for_role: newTask.value.role,
+      status: 'pending',
+      depends_on: dependsOn
+    }
+    
+    if (!process.value.tasks) {
+      process.value.tasks = []
+    }
+    process.value.tasks.push(newTaskObj)
+    
+    const { nodes, edges } = calculateLayout(process.value.tasks)
+    elements.value = [...nodes, ...edges]
+    showAddTask.value = false
+    newTask.value = { title: '', role: 'worker', dependsOn: '' }
+  } catch (err) {
+    alert(`Failed to add task: ${err.message}`)
   }
 }
 
@@ -219,8 +271,8 @@ const completeTask = async (taskId) => {
     })
 
     task.status = 'done'
+    await updateProcessStatus()
     
-    // Пересчитываем граф для обновления анимаций
     const { nodes, edges } = calculateLayout(process.value.tasks)
     elements.value = [...nodes, ...edges]
     
@@ -229,11 +281,36 @@ const completeTask = async (taskId) => {
     }
   } catch (err) {
     alert(`Failed to complete task: ${err.message}`)
-    console.error(err)
   }
 }
 
+const startLinking = (task) => {
+  selectedTaskForLink.value = task
+}
+
+const cancelLink = () => {
+  selectedTaskForLink.value = null
+}
+
 const onNodeClick = ({ node }) => {
+  if (selectedTaskForLink.value && node.data?.task) {
+    // Создаем связь
+    const sourceTask = selectedTaskForLink.value
+    const targetTask = node.data.task
+    
+    if (sourceTask.id === targetTask.id) return
+    
+    if (!targetTask.depends_on) targetTask.depends_on = []
+    if (!targetTask.depends_on.includes(sourceTask.id)) {
+      targetTask.depends_on.push(sourceTask.id)
+      const { nodes, edges } = calculateLayout(process.value.tasks)
+      elements.value = [...nodes, ...edges]
+    }
+    
+    selectedTaskForLink.value = null
+    return
+  }
+  
   if (node.data?.task) {
     selectedTask.value = { ...node.data.task }
   }
@@ -247,11 +324,8 @@ const updateTask = (updatedTask) => {
   const index = process.value.tasks.findIndex(t => t.id === updatedTask.id)
   if (index !== -1) {
     process.value.tasks[index] = { ...process.value.tasks[index], ...updatedTask }
-    
-    // Пересчитываем граф
     const { nodes, edges } = calculateLayout(process.value.tasks)
     elements.value = [...nodes, ...edges]
-    
     selectedTask.value = null
   }
 }
@@ -268,7 +342,7 @@ onMounted(() => {
 <style scoped>
 .process-view {
   width: 100%;
-  height: calc(100vh - 140px);
+  height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
 }
@@ -277,7 +351,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   padding: 12px 20px;
-  border-bottom: 2px solid var(--color-text);
+  border-bottom: 2px solid var(--color-border);
   background: var(--color-background);
   z-index: 10;
   flex-wrap: wrap;
@@ -287,68 +361,79 @@ onMounted(() => {
 .tool-btn {
   padding: 6px 12px;
   background: transparent;
-  border: 2px solid var(--color-text);
-  border-radius: 255px 150px 225px 150px/150px 225px 150px 255px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-btn);
   cursor: pointer;
   font-family: var(--font-1);
   color: var(--color-text);
 }
+.tool-btn:hover { transform: translateY(-1px); }
 
-.process-name {
-  flex: 1;
-  font-weight: bold;
-  font-family: var(--font-1);
-  margin-left: 20px;
-}
+.process-name { flex: 1; font-weight: bold; font-family: var(--font-1); margin-left: 20px; }
 
 .process-status {
   font-family: var(--font-1);
   padding: 4px 12px;
-  border: 2px solid var(--color-text);
-  border-radius: 15px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
+.status-draft { color: var(--status-draft); }
+.status-in_progress { color: var(--status-progress); }
+.status-done { color: var(--status-done); }
 
-.flow-container {
-  flex: 1;
-  width: 100%;
-}
+.flow-container { flex: 1; width: 100%; position: relative; }
 
-.status-message {
-  text-align: center;
-  padding: 2rem;
+.link-hint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-info);
+  color: white;
+  padding: 8px 20px;
+  border-radius: var(--radius-md);
   font-family: var(--font-1);
-  border: 2px dashed var(--color-text);
-  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  z-index: 20;
 }
 
-.status-message.error {
-  border-color: #ff4444;
-  color: #ff4444;
+/* Модалка */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
-
-:deep(.vue-flow__node) {
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-:deep(.vue-flow__edge-path) {
-  stroke-width: 2;
-}
-
-:deep(.vue-flow__controls) {
-  border: 2px solid var(--color-text);
-  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
-  overflow: hidden;
-}
-
-:deep(.vue-flow__controls-button) {
+.modal {
   background: var(--color-background);
-  border-bottom: 1px solid var(--color-text);
+  border: 3px solid var(--color-border);
+  border-radius: var(--radius-sketch);
+  padding: 2rem;
+  min-width: 400px;
+}
+.modal h3 { font-family: var(--font-1); margin-bottom: 1rem; }
+.sketch-input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-1);
+  background: transparent;
   color: var(--color-text);
 }
-
-:deep(.vue-flow__background) {
-  background: var(--color-background);
+.modal-buttons { display: flex; gap: 10px; margin-top: 1rem; }
+.btn-save, .btn-cancel {
+  padding: 8px 20px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  font-family: var(--font-1);
+  background: transparent;
+  color: var(--color-text);
 }
+.btn-save { border-color: var(--color-success); color: var(--color-success); }
+.btn-cancel { border-color: var(--color-muted); color: var(--color-muted); }
 </style>

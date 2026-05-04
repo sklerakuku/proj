@@ -144,7 +144,7 @@ const nextMonth = () => {
 
 .search-input:focus {
   outline: none;
-  border-color: #4a90e2;
+  border-color: var(--color-primary);
 }
 
 .search-icon {
@@ -178,9 +178,9 @@ const nextMonth = () => {
   border-radius: 50%;
 }
 
-.priority-dot.high { background: #f44336; }
-.priority-dot.medium { background: #ff9800; }
-.priority-dot.low { background: #4caf50; }
+.priority-dot.high { background: var(--color-danger); }
+.priority-dot.medium { background: var(--color-warning); }
+.priority-dot.low { background: var(--color-success); }
 
 .calendar-header {
   display: flex;
@@ -239,7 +239,7 @@ const nextMonth = () => {
   transform: translateX(-50%);
   width: 4px;
   height: 4px;
-  background: #4caf50;
+  background: var(--color-success);
   border-radius: 50%;
 }
 </style>

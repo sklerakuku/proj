@@ -39,7 +39,7 @@
       </div>
       
       <button class="complete-task-btn" @click="completeTask" v-if="task.status !== 'done'">
-        ✓ Complete Task
+        Complete Task
       </button>
     </div>
   </div>
@@ -55,7 +55,8 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'update'])
+const emit = defineEmits(['close', 'update', 'complete'])
+
 
 const editedDescription = ref(props.task.description)
 
@@ -213,7 +214,7 @@ const completeTask = () => {
 
 .complete-task-btn {
   padding: 12px;
-  background: #4caf50;
+  background: var(--color-success);
   color: white;
   border: none;
   border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
