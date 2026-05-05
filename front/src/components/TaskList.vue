@@ -1,5 +1,6 @@
 <template>
   <div class="dashboard">
+    <div class="main-content">
     <div class="processes-area">
       <div class="processes-header">
         <h2>Active Processes ({{ activeProcesses.length }})</h2>
@@ -56,6 +57,15 @@
         </div>
       </div>
     </div>
+    
+      <!-- Sidebar -->
+      <Sidebar 
+        @search="handleSearch" 
+        @filter-change="handleFilterChange"
+        @date-change="handleDateChange"
+      />
+    </div>
+
 
     <!-- Модалка создания процесса без шаблона -->
     <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
@@ -94,6 +104,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import ProcessCard from './common/ProcessCard.vue'
+import Sidebar from './common/Sidebar.vue'
 
 const router = useRouter()
 const processes = ref([])
@@ -102,6 +113,11 @@ const loading = ref(true)
 const error = ref(null)
 const showCompleted = ref(false)
 const showArchived = ref(false)
+
+// Поиск и фильтры
+const searchQuery = ref('')
+const priorityFilter = ref([])
+const dateFilter = ref(null)
 
 const showCreateModal = ref(false)
 const showTemplateModal = ref(false)
@@ -137,6 +153,50 @@ const apiCall = async (url, options = {}) => {
   }
 
   return response.json()
+}
+
+// Функция фильтрации
+const filterProcesses = (list) => {
+  let result = [...list]
+  
+  // Поиск по названию
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    result = result.filter(p => p.title?.toLowerCase().includes(q))
+  }
+  
+  // По дате начала
+  if (dateFilter.value) {
+    const filterDate = new Date(dateFilter.value).toDateString()
+    result = result.filter(p => {
+      if (!p.started_at) return false
+      return new Date(p.started_at).toDateString() === filterDate
+    })
+  }
+  
+  return result
+}
+
+
+const baseActive = computed(() => processes.value.filter(p => p.status !== 'done' && p.status !== 'archived'))
+const baseCompleted = computed(() => processes.value.filter(p => p.status === 'done'))
+const baseArchived = computed(() => processes.value.filter(p => p.status === 'archived'))
+
+
+const filteredActive = computed(() => filterProcesses(baseActive.value))
+const filteredCompleted = computed(() => filterProcesses(baseCompleted.value))
+const filteredArchived = computed(() => filterProcesses(baseArchived.value))
+
+const handleSearch = (query) => {
+  searchQuery.value = query
+}
+
+const handleFilterChange = (filter) => {
+  priorityFilter.value = filter.priority || []
+}
+
+const handleDateChange = (date) => {
+  dateFilter.value = date
 }
 
 const activeProcesses = computed(() => 
@@ -220,14 +280,33 @@ onMounted(() => {
   width: 100%;
   min-height: 100vh;
   background: var(--color-background);
+}
+
+.main-content {
   display: flex;
-  justify-content: center;
+  padding: 2rem 5%;
+  gap: 2rem;
+  align-items: flex-start;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .processes-area {
-  width: 100%;
-  max-width: 900px;
-  padding: 2rem;
+  flex: 3;
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.processes-area::-webkit-scrollbar {
+  width: 8px;
+}
+.processes-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+.processes-area::-webkit-scrollbar-thumb {
+  background: var(--color-muted);
+  border-radius: 4px;
 }
 
 .processes-header {
@@ -235,16 +314,20 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+  position: sticky;
+  top: 0;
+  background: var(--color-background);
+  z-index: 5;
+  padding: 10px 0;
 }
-
 .processes-header h2 { font-family: var(--font-1); }
 
 .header-buttons { display: flex; gap: 10px; }
 
 .action-btn {
   padding: 8px 20px;
-  border: 2px solid var(--color-text);
-  border-radius: 255px 150px 225px 150px/150px 225px 150px 255px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-btn);
   background: transparent;
   cursor: pointer;
   font-family: var(--font-1);
@@ -261,17 +344,17 @@ onMounted(() => {
 
 .completed-section {
   margin-top: 2rem;
-  border-top: 2px dashed var(--color-text);
+  border-top: 2px dashed var(--color-muted);
   padding-top: 1rem;
 }
 
 .completed-header {
   cursor: pointer;
   padding: 10px;
-  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  border-radius: var(--radius-sketch);
   font-family: var(--font-1);
 }
-.completed-header:hover { background: rgba(0, 0, 0, 0.03); }
+.completed-header:hover { background: var(--color-hover); }
 
 .completed-grid {
   display: flex;
@@ -280,73 +363,23 @@ onMounted(() => {
   margin-top: 1rem;
 }
 
-/* Модалки */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: var(--color-background);
-  border: 3px solid var(--color-text);
-  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
-  padding: 2rem;
-  min-width: 400px;
-  max-width: 90vw;
-}
-
-.modal h3 { font-family: var(--font-1); margin-bottom: 1rem; }
-
-.sketch-input {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 10px;
-  border: 2px solid var(--color-text);
-  border-radius: 15px;
-  font-family: var(--font-1);
-  background: transparent;
-  color: var(--color-text);
-}
-
-.modal-buttons { display: flex; gap: 10px; margin-top: 1rem; }
-
-.btn-save, .btn-cancel {
-  padding: 8px 20px;
-  border: 2px solid var(--color-text);
-  border-radius: 255px 150px 225px 150px/150px 225px 150px 255px;
-  cursor: pointer;
-  font-family: var(--font-1);
-  background: transparent;
-  color: var(--color-text);
-}
-.btn-save { border-color: var(--color-success); color: var(--color-success); }
-.btn-cancel { border-color: #999; color: #999; }
-
-.template-list { max-height: 300px; overflow-y: auto; margin-bottom: 1rem; }
-
-.template-item {
-  padding: 12px;
-  border: 2px solid var(--color-text);
-  border-radius: 15px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: all 0.1s ease;
-}
-.template-item:hover { transform: translateY(-2px); }
-.template-item p { margin: 4px 0; font-size: 0.85rem; }
-.template-item small { opacity: 0.6; }
-
 .status-message {
   text-align: center;
   padding: 2rem;
   font-family: var(--font-1);
-  border: 2px dashed var(--color-text);
-  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-sketch);
 }
 .status-message.error { border-color: var(--color-danger); color: var(--color-danger); }
+
+@media (max-width: 768px) {
+  .main-content {
+    flex-direction: column;
+    padding: 1rem;
+  }
+  .processes-area {
+    max-height: none;
+    overflow: visible;
+  }
+}
 </style>

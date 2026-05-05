@@ -20,9 +20,10 @@
     <div class="card-row-3">
       <div class="breadcrumbs">
         <template v-for="(task, idx) in tasksList" :key="task.id">
-          <span v-if="idx > 0 && idx < tasksList.length" class="crumb-arrow">></span>
+          <span v-if="idx > 0" class="crumb-arrow">></span>
           <span class="crumb" :class="crumbClass(task)">{{ task.title }}</span>
         </template>
+        <span v-if="tasksList.length === 0" class="crumb">No tasks yet</span>
       </div>
     </div>
   </div>
@@ -47,10 +48,12 @@ const currentTask = computed(() => {
 })
 
 const stageDuration = computed(() => {
-  if (!currentTask.value?.started_at) return 'not started'
+  if (!currentTask.value?.started_at) return '--'
   const start = new Date(currentTask.value.started_at)
   const now = new Date()
-  const hours = Math.floor((now - start) / (1000 * 60 * 60))
+  const diff = now - start
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  if (hours < 1) return '< 1h'
   if (hours < 24) return `${hours}h`
   const days = Math.floor(hours / 24)
   return `${days}d ${hours % 24}h`
@@ -67,7 +70,7 @@ const isOverdue = computed(() => {
 const waitingFor = computed(() => {
   const task = currentTask.value
   if (!task) return null
-  return task.for_role || task.users?.[0]?.username || 'assignee'
+  return task.for_role || 'assignee'
 })
 
 const crumbClass = (task) => ({
@@ -75,11 +78,6 @@ const crumbClass = (task) => ({
   'crumb-active': task.status === 'in_progress',
   'crumb-pending': task.status === 'pending'
 })
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  try { return new Date(dateStr).toLocaleDateString() } catch { return dateStr }
-}
 </script>
 
 <style scoped>
