@@ -5,6 +5,7 @@
       <div class="process-name">{{ process.title }}</div>
       <div class="process-status" :class="'status-' + process.status">{{ process.status }}</div>
       <button class="tool-btn" @click="showAddTask = true">+ Task</button>
+      <button class="tool-btn" @click="showAllAttachments = true">📎 All Attachments</button>
       <button 
         v-if="process.status === 'done'" 
         class="tool-btn" 
@@ -50,6 +51,26 @@
       @update="updateTask"
       @complete="(id) => completeTask(id)"
     />
+
+<!-- Модалка со всеми вложениями -->
+<div v-if="showAllAttachments" class="modal-overlay" @click.self="showAllAttachments = false">
+  <div class="modal modal-large">
+    <h3>All Attachments</h3>
+    <div class="attachments-list">
+      <div v-for="task in process.tasks" :key="task.id" class="task-attachments-group">
+        <h4>{{ task.title }}</h4>
+        <div v-if="task.attachments?.length" class="attachment-items">
+          <div v-for="(att, idx) in task.attachments" :key="idx" class="attachment-item">
+            <a :href="att.file_path" download>📄 {{ att.file_path.split('/').pop() }}</a>
+            <span class="file-size">({{ att.file_size_kb }} KB)</span>
+          </div>
+        </div>
+        <div v-else class="no-attachments">No attachments</div>
+      </div>
+    </div>
+    <button class="btn-cancel" @click="showAllAttachments = false">Close</button>
+  </div>
+</div>
 
     <!-- Модалка добавления задачи -->
 <div v-if="showAddTask" class="modal-overlay" @click.self="showAddTask = false">

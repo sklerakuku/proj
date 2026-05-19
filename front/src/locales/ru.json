@@ -1,0 +1,34 @@
+{
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "close": "Закрыть",
+    "create": "Создать",
+    "search": "Поиск"
+  },
+  "dashboard": {
+    "active_processes": "Активные процессы",
+    "completed": "Завершенные",
+    "history": "История",
+    "from_template": "Из шаблона",
+    "no_active": "Нет активных процессов. Создайте новый!"
+  },
+  "process": {
+    "back": "Назад",
+    "add_task": "Добавить задачу",
+    "archive": "Архивировать",
+    "status_draft": "Черновик",
+    "status_progress": "В работе",
+    "status_done": "Готово"
+  },
+  "task": {
+    "title": "Название задачи",
+    "description": "Описание",
+    "role": "Роль",
+    "attachments": "Вложения",
+    "complete": "Завершить задачу",
+    "waiting_for": "Ожидание"
+  }
+}

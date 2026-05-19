@@ -84,6 +84,10 @@ func main() {
 	http.HandleFunc("DELETE /admin/templates/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.DeleteTemplate))))
 	http.HandleFunc("DELETE /admin/processes/", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.DeleteProcess))))
 
+	http.HandleFunc("PATCH /tasks/{id}/comment", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.UpdateTaskComment))))
+	http.HandleFunc("POST /tasks/{id}/attachments", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.UploadAttachment))))
+	http.HandleFunc("GET /tasks/{id}/attachments", middleware.CORSMiddleware(middleware.Auth(middleware.Logging(h.GetTaskAttachments))))
+
 	server := &http.Server{
 		Addr:         ":" + cfg.AppPort,
 		ReadTimeout:  15 * time.Second,

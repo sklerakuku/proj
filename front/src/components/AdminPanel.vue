@@ -68,15 +68,47 @@
         </tbody>
       </table>
       
-      <!-- Модалка создания шаблона -->
+      <!-- В AdminPanel.vue, внутри модалки создания шаблона -->
       <div v-if="showAddTemplate" class="modal-overlay" @click.self="showAddTemplate = false">
-        <div class="modal">
+        <div class="modal modal-large">
           <h3>Create Template</h3>
           <form @submit.prevent="createTemplate">
             <input v-model="newTemplate.name" placeholder="Template name" class="sketch-input" required />
-            <textarea v-model="newTemplate.description" placeholder="Description" class="sketch-input" rows="3"></textarea>
+            <textarea v-model="newTemplate.description" placeholder="Description" class="sketch-input" rows="2"></textarea>
+            
+            <!-- Список задач шаблона -->
+            <div class="template-tasks-section">
+              <h4>Tasks</h4>
+              <div v-for="(task, idx) in newTemplate.tasks" :key="idx" class="template-task-row">
+                <input v-model="task.title" placeholder="Task title" class="sketch-input small" />
+                <select v-model="task.for_role" class="sketch-input small">
+                  <option value="worker">Worker</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <label><input type="checkbox" v-model="task.is_file_required" /> File required</label>
+                <input type="number" v-model="task.plan_hours" placeholder="Hours" class="sketch-input tiny" />
+                <button type="button" class="btn-remove" @click="removeTask(idx)">✕</button>
+              </div>
+              <button type="button" class="btn-add-task" @click="addTask">+ Add Task</button>
+            </div>
+            
+            <!-- Зависимости между задачами -->
+            <div class="dependencies-section" v-if="newTemplate.tasks.length > 1">
+              <h4>Dependencies</h4>
+              <div v-for="(task, idx) in newTemplate.tasks" :key="idx" class="dependency-row">
+                <span class="task-name">{{ task.title || `Task ${idx+1}` }}</span>
+                <span>depends on:</span>
+                <select v-model="task.depends_on" multiple class="sketch-input small">
+                  <option v-for="(other, oidx) in newTemplate.tasks" :key="oidx" :value="oidx" :disabled="oidx === idx">
+                    {{ other.title || `Task ${oidx+1}` }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            
             <div class="modal-buttons">
-              <button type="submit" class="btn-save">Create</button>
+              <button type="submit" class="btn-save">Create Template</button>
               <button type="button" class="btn-cancel" @click="showAddTemplate = false">Cancel</button>
             </div>
           </form>
@@ -127,7 +159,6 @@ const processes = ref([])
 const editingUser = ref(null)
 const editForm = ref({ username: '', role: '' })
 const showAddTemplate = ref(false)
-const newTemplate = ref({ name: '', description: '' })
 
 const apiCall = async (url, options = {}) => {
   const token = localStorage.getItem('auth_token')
@@ -201,22 +232,51 @@ const deleteUser = async (id) => {
   }
 }
 
-// Templates
+// В AdminPanel.vue
+const newTemplate = ref({ 
+  name: '', 
+  description: '', 
+  tasks: [] 
+})
+
+const addTask = () => {
+  newTemplate.value.tasks.push({
+    title: '',
+    for_role: 'worker',
+    is_file_required: false,
+    plan_hours: 0,
+    depends_on: []
+  })
+}
+
+const removeTask = (idx) => {
+  newTemplate.value.tasks.splice(idx, 1)
+}
+
 const createTemplate = async () => {
   try {
+    // Преобразуем индексы зависимостей в ID задач шаблона
+    const tasksWithDeps = newTemplate.value.tasks.map((task, idx) => ({
+      title: task.title,
+      for_role: task.for_role,
+      is_file_required: task.is_file_required,
+      plan_hours: task.plan_hours,
+      depends_on: task.depends_on.map(depIdx => depIdx + 1) // временные ID
+    }))
+    
     await apiCall('/templates', {
       method: 'POST',
       body: JSON.stringify({
         name: newTemplate.value.name,
         description: newTemplate.value.description,
-        tasks: []
+        tasks: tasksWithDeps
       })
     })
     showAddTemplate.value = false
-    newTemplate.value = { name: '', description: '' }
+    newTemplate.value = { name: '', description: '', tasks: [] }
     await loadTemplates()
   } catch (e) {
-    alert('Failed to create template')
+    alert('Failed to create template: ' + e.message)
   }
 }
 

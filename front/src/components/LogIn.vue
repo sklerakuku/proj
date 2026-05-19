@@ -1,6 +1,6 @@
 <template>
   <div class="login">
-    <h2>Log In</h2>
+    <h2>{{ t('auth.login_title') }}</h2>
     
     <form @submit.prevent="handleLogin">
       <div class="form-group">
@@ -9,7 +9,7 @@
           class="sketch-input"
           type="text"
           v-model="formData.username"
-          placeholder="username"
+          :placeholder="t('auth.username')"
           :class="{ 'error': errors.username }"
           @blur="validateField('username')"
           required
@@ -23,7 +23,7 @@
           class="sketch-input"
           type="password"
           v-model="formData.password"
-          placeholder="password"
+          :placeholder="t('auth.password')"
           :class="{ 'error': errors.password }"
           @blur="validateField('password')"
           required
@@ -36,11 +36,11 @@
         class="sketch-button"
         :disabled="isLoading"
       >
-        {{ isLoading ? 'Logging in...' : 'Enter' }}
+        {{ isLoading ? t('auth.logging_in') : t('auth.enter') }}
       </button>
       
       <div class="login-footer">
-        <router-link to="/signup" class="register-link">Don't have an account?</router-link>
+        <router-link to="/signup" class="register-link">{{ t('auth.no_account') }}</router-link>
       </div>
     </form>
 
@@ -51,9 +51,11 @@
 </template>
 
 <script setup>
+import { useI18n } from '../i18n'
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 
+const { t } = useI18n()
 const router = useRouter()
 
 const formData = reactive({

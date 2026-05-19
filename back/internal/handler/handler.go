@@ -2,7 +2,10 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -470,6 +473,95 @@ func (h *Handler) DeleteProcess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondJSON(w, http.StatusOK, SuccessResponse{Message: "process deleted"})
+}
+
+// UpdateTaskComment - обновление описания задачи
+func (h *Handler) UpdateTaskComment(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
+		h.respondError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+
+	taskID, err := strconv.Atoi(parts[2])
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid task id")
+		return
+	}
+
+	var req struct {
+		Comment string `json:"comment"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+
+	if err := h.service.UpdateTaskComment(r.Context(), taskID, req.Comment); err != nil {
+		h.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, SuccessResponse{Message: "comment updated"})
+}
+
+// UploadAttachment - загрузка вложения
+func (h *Handler) UploadAttachment(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
+		h.respondError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+
+	taskID, err := strconv.Atoi(parts[2])
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid task id")
+		return
+	}
+
+	// Parse multipart form (10MB max)
+	r.ParseMultipartForm(10 << 20)
+
+	file, handler, err := r.FormFile("file")
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "file required")
+		return
+	}
+	defer file.Close()
+
+	// Сохраняем файл
+	filePath := fmt.Sprintf("./uploads/%d_%s", taskID, handler.Filename)
+	dst, err := os.Create(filePath)
+	if err != nil {
+		h.respondError(w, http.StatusInternalServerError, "failed to save file")
+		return
+	}
+	defer dst.Close()
+
+	io.Copy(dst, file)
+
+	// Сохраняем в БД
+	if err := h.service.AddAttachment(r.Context(), taskID, filePath, handler.Size/1024); err != nil {
+		h.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, SuccessResponse{Message: "file uploaded"})
+}
+
+// GetTaskAttachments - получение вложений задачи
+func (h *Handler) GetTaskAttachments(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	taskID, _ := strconv.Atoi(parts[2])
+
+	attachments, err := h.service.GetTaskAttachments(r.Context(), taskID)
+	if err != nil {
+		h.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, attachments)
 }
 
 // ArchiveProcess - архивировать процесс

@@ -210,3 +210,15 @@ func (s *Service) DeleteProcess(ctx context.Context, id int) error {
 func (s *Service) ArchiveProcess(ctx context.Context, id int) error {
 	return s.repo.UpdateProcessStatus(ctx, id, "archived")
 }
+
+func (s *Service) UpdateTaskComment(ctx context.Context, taskID int, comment string) error {
+	return s.repo.UpdateTaskComment(ctx, taskID, comment)
+}
+
+func (s *Service) AddAttachment(ctx context.Context, taskID int, filePath string, fileSizeKb int64) error {
+	return s.repo.AddAttachment(ctx, taskID, filePath, fileSizeKb)
+}
+
+func (s *Service) GetTaskAttachments(ctx context.Context, taskID int) (model.Attachments, error) {
+	return s.repo.GetTaskAttachments(ctx, taskID)
+}

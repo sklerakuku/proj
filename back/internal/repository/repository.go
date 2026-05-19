@@ -368,3 +368,36 @@ func (r *Repository) UpdateProcessStatus(ctx context.Context, id int, status str
 	_, err := r.db.Exec(ctx, `UPDATE processes SET status = $1 WHERE id = $2`, status, id)
 	return err
 }
+
+// UpdateTaskComment
+func (r *Repository) UpdateTaskComment(ctx context.Context, taskID int, comment string) error {
+	_, err := r.db.Exec(ctx, `UPDATE tasks SET comment = $1 WHERE id = $2`, comment, taskID)
+	return err
+}
+
+// AddAttachment
+func (r *Repository) AddAttachment(ctx context.Context, taskID int, filePath string, fileSizeKb int64) error {
+	_, err := r.db.Exec(ctx, `INSERT INTO attachments (task_id, file_path, file_size_kb) VALUES ($1, $2, $3)`,
+		taskID, filePath, fileSizeKb)
+	return err
+}
+
+// GetTaskAttachments
+func (r *Repository) GetTaskAttachments(ctx context.Context, taskID int) (model.Attachments, error) {
+	rows, err := r.db.Query(ctx, `SELECT id, task_id, file_path, file_size_kb, upload_at FROM attachments WHERE task_id = $1`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var attachments model.Attachments
+	for rows.Next() {
+		var a model.Attachment
+		err := rows.Scan(&a.ID, &a.TaskID, &a.FilePath, &a.FileSizeKb, &a.UploadedAt)
+		if err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, &a)
+	}
+	return attachments, nil
+}

@@ -1,30 +1,39 @@
+
 <template>
   <div>
-    <!-- Заголовок видно ВСЕГДА -->
     <header>
-      <h1 @click="goHome" class="logo">Tasks Workflow Manager</h1>
+      <h1 @click="goHome" class="logo">{{ t('app.title') }}</h1>
+      
+      <div class="language-switcher">
+        <button @click="setLocale('ru')" :class="{ active: locale === 'ru' }">RU</button>
+        <button @click="setLocale('en')" :class="{ active: locale === 'en' }">EN</button>
+      </div>
+      
       <div v-if="isAuthenticated" class="user" @click="toggleMenu">
         <h3 class="name">{{ username }}</h3>
         <div class="user-picture">{{ avatarLetter }}</div>
         <div v-if="showMenu" class="dropdown-menu" @click.stop>
-          <button @click="goToProfile">Profile</button>
-          <button v-if="isAdmin" @click="goToAdmin">Admin Panel</button>
-          <button @click="logout">Logout</button>
+          <button @click="goToProfile">{{ t('nav.profile') }}</button>
+          <button v-if="isAdmin" @click="goToAdmin">{{ t('nav.admin') }}</button>
+          <button @click="logout">{{ t('nav.logout') }}</button>
         </div>
       </div>
     </header>
     
     <main>
-      <router-view></router-view>
+      <router-view />
     </main>
 
     <footer>
-      <p> &copy; {{ new Date().getFullYear() }} =^-^=</p>
+      <p>&copy; {{ new Date().getFullYear() }} {{ t('footer.copyright') }}</p>
     </footer>
   </div>
 </template>
 
+
 <script setup>
+import { useI18n } from './i18n'
+const { t, locale, setLocale } = useI18n()
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 

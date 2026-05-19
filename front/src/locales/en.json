@@ -1,0 +1,35 @@
+
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "create": "Create",
+    "search": "Search"
+  },
+  "dashboard": {
+    "active_processes": "Active Processes",
+    "completed": "Completed",
+    "history": "History",
+    "from_template": "From Template",
+    "no_active": "No active processes. Create one to get started!"
+  },
+  "process": {
+    "back": "Back",
+    "add_task": "Add Task",
+    "archive": "Archive",
+    "status_draft": "Draft",
+    "status_progress": "In Progress",
+    "status_done": "Done"
+  },
+  "task": {
+    "title": "Task Title",
+    "description": "Description",
+    "role": "Role",
+    "attachments": "Attachments",
+    "complete": "Complete Task",
+    "waiting_for": "Waiting for"
+  }
+}

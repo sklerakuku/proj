@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS builder
+FROM dockerhub.timeweb.cloud/library/golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ COPY . .
 
 RUN go build -o main ./cmd/api/main.go
 
-FROM alpine:latest
+FROM dockerhub.timeweb.cloud/library/alpine:latest
 
 COPY --from=builder /app/main .
 

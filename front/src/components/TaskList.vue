@@ -114,7 +114,6 @@ const error = ref(null)
 const showCompleted = ref(false)
 const showArchived = ref(false)
 
-// Поиск и фильтры
 const searchQuery = ref('')
 const priorityFilter = ref([])
 const dateFilter = ref(null)
@@ -127,10 +126,7 @@ const creatingEmpty = ref(false)
 
 const apiCall = async (url, options = {}) => {
   const token = localStorage.getItem('auth_token')
-  if (!token) {
-    router.push('/login')
-    throw new Error('Not authenticated')
-  }
+  if (!token) { router.push('/login'); throw new Error('Not authenticated') }
 
   const headers = {
     'Content-Type': 'application/json',
@@ -155,17 +151,12 @@ const apiCall = async (url, options = {}) => {
   return response.json()
 }
 
-// Функция фильтрации
 const filterProcesses = (list) => {
   let result = [...list]
-  
-  // Поиск по названию
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     result = result.filter(p => p.title?.toLowerCase().includes(q))
   }
-  
-  // По дате начала
   if (dateFilter.value) {
     const filterDate = new Date(dateFilter.value).toDateString()
     result = result.filter(p => {
@@ -173,60 +164,35 @@ const filterProcesses = (list) => {
       return new Date(p.started_at).toDateString() === filterDate
     })
   }
-  
   return result
 }
 
-
-const baseActive = computed(() => processes.value.filter(p => p.status !== 'done' && p.status !== 'archived'))
-const baseCompleted = computed(() => processes.value.filter(p => p.status === 'done'))
-const baseArchived = computed(() => processes.value.filter(p => p.status === 'archived'))
-
-
-const filteredActive = computed(() => filterProcesses(baseActive.value))
-const filteredCompleted = computed(() => filterProcesses(baseCompleted.value))
-const filteredArchived = computed(() => filterProcesses(baseArchived.value))
-
-const handleSearch = (query) => {
-  searchQuery.value = query
-}
-
-const handleFilterChange = (filter) => {
-  priorityFilter.value = filter.priority || []
-}
-
-const handleDateChange = (date) => {
-  dateFilter.value = date
-}
-
+// Единые computed с фильтрацией
 const activeProcesses = computed(() => 
-  processes.value.filter(p => p.status !== 'done' && p.status !== 'archived')
+  filterProcesses(processes.value.filter(p => p.status !== 'done' && p.status !== 'archived'))
 )
 const completedProcesses = computed(() => 
-  processes.value.filter(p => p.status === 'done')
+  filterProcesses(processes.value.filter(p => p.status === 'done'))
 )
 const archivedProcesses = computed(() => 
-  processes.value.filter(p => p.status === 'archived')
+  filterProcesses(processes.value.filter(p => p.status === 'archived'))
 )
+
+const handleSearch = (query) => { searchQuery.value = query }
+const handleFilterChange = (filter) => { priorityFilter.value = filter.priority || [] }
+const handleDateChange = (date) => { dateFilter.value = date }
 
 const fetchProcesses = async () => {
   loading.value = true
   error.value = null
-  try {
-    processes.value = await apiCall('/processes') || []
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    loading.value = false
-  }
+  try { processes.value = await apiCall('/processes') || [] }
+  catch (err) { error.value = err.message }
+  finally { loading.value = false }
 }
 
 const fetchTemplates = async () => {
-  try {
-    templates.value = await apiCall('/templates') || []
-  } catch (e) {
-    console.error('Failed to load templates', e)
-  }
+  try { templates.value = await apiCall('/templates') || [] }
+  catch (e) { console.error('Failed to load templates', e) }
 }
 
 const createEmptyProcess = async () => {
@@ -234,11 +200,9 @@ const createEmptyProcess = async () => {
   try {
     const response = await apiCall('/processes/empty', {
       method: 'POST',
-      body: JSON.stringify({
-        title: newProcessTitle.value
-      })
+      body: JSON.stringify({ title: newProcessTitle.value })
     })
-    processes.value.unshift(response) // добавляем в начало списка
+    processes.value.unshift(response)
     showCreateModal.value = false
     newProcessTitle.value = ''
     newProcessDescription.value = ''
@@ -265,9 +229,7 @@ const createFromTemplate = async (tpl) => {
   }
 }
 
-const openProcess = (id) => {
-  router.push(`/processes/${id}`)
-}
+const openProcess = (id) => { router.push(`/processes/${id}`) }
 
 onMounted(() => {
   fetchProcesses()
@@ -381,5 +343,60 @@ onMounted(() => {
     max-height: none;
     overflow: visible;
   }
+}
+
+/* Модалка */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal {
+  background: var(--color-background);
+  border: 3px solid var(--color-border);
+  border-radius: var(--radius-sketch);
+  padding: 2rem;
+  min-width: 400px;
+}
+.modal h3 { font-family: var(--font-1); margin-bottom: 1rem; }
+
+.modal-buttons { display: flex; gap: 10px; margin-top: 1rem; }
+
+.template-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.template-item {
+  padding: 12px;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.template-item:hover {
+  background: var(--color-hover, #f5f5f5);
+}
+
+.btn-save, .btn-cancel {
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-save {
+  background: var(--color-primary, #4caf50);
+  color: white;
+}
+
+.btn-cancel {
+  background: var(--color-muted, #ccc);
 }
 </style>
